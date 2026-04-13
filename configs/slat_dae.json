@@ -1,0 +1,212 @@
+{
+    "models": {
+        "encoder": {
+            "name": "AniGenElasticSLatEncoder",
+            "args": {
+                "resolution": 64,
+                "in_channels": 1024,
+                "model_channels": 768,
+                "model_channels_skl": 512,
+                "model_channels_skin": 512,
+                "latent_channels": 8,
+                "latent_channels_skl": 4,
+                "latent_channels_vertskin": 8,
+                "num_blocks": 12,
+                "num_heads": 12,
+                "num_heads_skl": 16,
+                "num_heads_skin": 16,
+                "skl_pos_embed_freq": 10,
+                "skin_encoder_config": {
+                    "skin_feat_channels": 4,
+                    "skl_pos_embed_freq": 12,
+                    "jp_embedder_config": {
+                        "hidden_dim": 1024,
+                        "depth": 6,
+                        "jp_embed_attn": true
+                    },
+                    "jp_embed_dim": 1024,
+                    "relative_pe": true,
+                    "vert_feat_is_linear": true,
+                    "normalize_feat": true
+                },
+                "encode_upsampled_skin_feat": true,
+                "attn_mode_cross": "swin",
+                "mlp_ratio": 4,
+                "attn_mode": "swin",
+                "window_size": 8,
+                "use_fp16": true,
+                "use_pretrain_branch": true,
+                "freeze_pretrain_branch": true,
+                "modules_to_freeze": [
+                    "input_layer",
+                    "blocks",
+                    "out_layer",
+                    "skin_encoder"
+                ],
+                "skin_cross_from_geo": false,
+                "skl_cross_from_geo": false,
+                "skin_skl_cross": false,
+                "latent_denoising": true,
+                "normalize_z": true,
+                "normalize_scale": 1.0,
+                "jp_residual_fields": true,
+                "jp_hyper_continuous": true
+            }
+        },
+        "decoder": {
+            "name": "AniGenElasticSLatMeshDecoder",
+            "args": {
+                "resolution": 64,
+                "model_channels": 768,
+                "model_channels_skl": 512,
+                "model_channels_skin": 512,
+                "latent_channels": 8,
+                "latent_channels_skl": 4,
+                "latent_channels_vertskin": 8,
+                "num_blocks": 12,
+                "num_heads": 12,
+                "num_heads_skl": 16,
+                "num_heads_skin": 16,
+                "skin_cross_from_groupped": false,
+                "h_skin_unet_num_levels": -1,
+                "skin_decoder_config": {
+                    "model_type": "tree",
+                    "skin_feat_channels": 4,
+                    "model_channels": 64,
+                    "num_blocks": 4,
+                    "vert_cross_blocks_num": 0
+                },
+                "attn_mode_cross": "swin",
+                "upsample_skl": false,
+                "skl_defined_on_center": true,
+                "mlp_ratio": 4,
+                "attn_mode": "swin",
+                "window_size": 8,
+                "use_fp16": true,
+                "representation_config": {
+                    "use_color": true,
+                    "use_conf_jp": true,
+                    "use_conf_skin": false
+                },
+                "use_pretrain_branch": true,
+                "freeze_pretrain_branch": true,
+                "modules_to_freeze": [
+                    "input_layer",
+                    "blocks",
+                    "upsample",
+                    "out_layer",
+                    "skin_decoder"
+                ],
+                "skin_cross_from_geo": false,
+                "skl_cross_from_geo": false,
+                "skin_skl_cross": false,
+                "normalize_z": false,
+                "normalize_scale": 1.0,
+                "jp_residual_fields": true,
+                "jp_hyper_continuous": true
+            }
+        }
+    },
+    "dataset": {
+        "name": "AniGenSparseFeat2Skeleton",
+        "args": {
+            "image_size": 512,
+            "model": "dinov2_vitl14_reg",
+            "resolution": 64,
+            "min_aesthetic_score": 4.5,
+            "max_num_voxels": 32768,
+            "load_cubvh": true,
+            "skl_dilation_iter": 2,
+            "test_mode": false,
+            "is_test": false
+        }
+    },
+    "trainer": {
+        "name": "AniGenSLatVaeSkeletonTrainer",
+        "args": {
+            "latent_denoising": false,
+            "latent_denoising_gamma": 1.0,
+            "latent_denoising_skl": true,
+            "latent_denoising_gamma_skl": 1.0,
+            "latent_time_max": 0.75,
+            "latent_time_max_skl": 0.75,
+            "latent_achive_max_step": 10000,
+            "latent_achive_max_step_skl": 10000,
+            "max_steps": 1000000,
+            "batch_size_per_gpu": 2,
+            "batch_split": 2,
+            "alpha_conf_j": 0.1,
+            "alpha_conf_p": 0.1,
+            "optimizer": {
+                "name": "AdamW",
+                "args": {
+                    "lr": 0.0001,
+                    "weight_decay": 0.0
+                }
+            },
+            "log_param_stats": false,
+            "lr_scheduler": {
+                "name": "SequentialLR",
+                "schedulers": [
+                    {
+                        "name": "LinearLR",
+                        "args": {
+                            "start_factor": 1e-06,
+                            "end_factor": 1.0,
+                            "total_iters": 1000
+                        }
+                    },
+                    {
+                        "name": "CosineAnnealingLR",
+                        "args": {
+                            "T_max": 1000000,
+                            "eta_min": 0.0
+                        }
+                    }
+                ],
+                "args": {
+                    "milestones": [
+                        1000
+                    ]
+                }
+            },
+            "ema_rate": [
+                0.9999
+            ],
+            "fp16_mode": "inflat_all",
+            "fp16_scale_growth": 0.001,
+            "elastic": {
+                "name": "LinearMemoryController",
+                "args": {
+                    "target_ratio": 0.75,
+                    "max_mem_ratio_start": 0.5
+                }
+            },
+            "grad_clip": {
+                "name": "AdaptiveGradClipper",
+                "args": {
+                    "max_norm": 1.0,
+                    "clip_percentile": 95
+                }
+            },
+            "i_log": 1000,
+            "i_sample": 5000,
+            "i_save": 1000,
+            "loss_type": "l1",
+            "lambda_ssim": 0.2,
+            "lambda_lpips": 0.2,
+            "lambda_kl": 0.001,
+            "lambda_kl_skl": 0.001,
+            "lambda_joints": 10.0,
+            "lambda_parents": 5,
+            "regularizations": {
+                "lambda_vol": 10000.0,
+                "lambda_opacity": 0.001
+            },
+            "lambda_color": 0.1,
+            "lambda_skin_kl": 10,
+            "lambda_skin_feats_l2": 1,
+            "lambda_skin_feats_l2_skl": 1.0
+        }
+    }
+}

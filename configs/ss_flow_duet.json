@@ -1,0 +1,85 @@
+{
+    "models": {
+        "denoiser": {
+            "name": "AniGenSparseStructureFlowModel",
+            "args": {
+                "resolution": 16,
+                "in_channels": 8,
+                "in_channels_skl": 4,
+                "out_channels": 8,
+                "out_channels_skl": 4,
+                "model_channels": 1024,
+                "model_channels_skl": 1024,
+                "cond_channels": 1024,
+                "num_blocks": 24,
+                "num_heads": 16,
+                "mlp_ratio": 4,
+                "patch_size": 1,
+                "pe_mode": "ape",
+                "qk_rms_norm": true,
+                "use_fp16": true,
+                "use_pretrain_branch": true,
+                "freeze_pretrain_branch": false,
+                "modules_to_freeze": [
+                    "blocks",
+                    "input_layer",
+                    "out_layer",
+                    "pos_emb",
+                    "t_embedder"
+                ],
+                "adapter_ss_to_skl": true,
+                "adapter_skl_to_ss": true
+            }
+        }
+    },
+    "dataset": {
+        "name": "ImageConditionedAniGenSparseStructureLatent",
+        "args": {
+            "latent_model": "anigen_ss_dae_final",
+            "min_aesthetic_score": 4.5,
+            "image_size": 518,
+            "ss_dec_path": "ckpts/anigen/ss_dae",
+            "ss_dec_ckpt": "final"
+        }
+    },
+    "trainer": {
+        "name": "AniGenImageConditionedFlowMatchingCFGTrainer",
+        "args": {
+            "max_steps": 1000000,
+            "batch_size_per_gpu": 4,
+            "batch_split": 2,
+            "optimizer": {
+                "name": "AdamW",
+                "args": {
+                    "lr": 0.0001,
+                    "weight_decay": 0.0
+                }
+            },
+            "ema_rate": [
+                0.9999
+            ],
+            "fp16_mode": "inflat_all",
+            "fp16_scale_growth": 0.001,
+            "grad_clip": {
+                "name": "AdaptiveGradClipper",
+                "args": {
+                    "max_norm": 1.0,
+                    "clip_percentile": 95
+                }
+            },
+            "i_log": 500,
+            "i_sample": 5000,
+            "i_save": 1000,
+            "p_uncond": 0.1,
+            "t_schedule": {
+                "name": "logitNormal",
+                "args": {
+                    "mean": 1.0,
+                    "std": 1.0
+                }
+            },
+            "sigma_min": 1e-05,
+            "image_cond_model": "dinov2_vitl14_reg"
+        }
+    }
+}

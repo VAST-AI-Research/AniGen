@@ -1,0 +1,163 @@
+{
+    "models": {
+        "denoiser": {
+            "name": "AniGenElasticSLatFlowModel",
+            "args": {
+                "resolution": 64,
+                "in_channels": 8,
+                "in_channels_vert_skin": 8,
+                "in_channels_skl": 4,
+                "out_channels": 8,
+                "out_channels_vert_skin": 8,
+                "out_channels_skl": 4,
+                "model_channels": 1024,
+                "model_channels_vert_skin": 512,
+                "model_channels_skl": 512,
+                "cond_channels": 1024,
+                "num_blocks": 24,
+                "num_heads": 16,
+                "num_heads_vert_skin": 16,
+                "num_heads_skl": 16,
+                "mlp_ratio": 4,
+                "patch_size": 2,
+                "num_io_res_blocks": 2,
+                "num_io_res_blocks_vert_skin": 2,
+                "num_io_res_blocks_skl": 2,
+                "io_block_channels": [
+                    128
+                ],
+                "io_block_channels_vert_skin": [
+                    64
+                ],
+                "io_block_channels_skl": [
+                    64
+                ],
+                "pe_mode": "ape",
+                "qk_rms_norm": true,
+                "use_joint_num_cond": false,
+                "use_fp16": true,
+                "use_pretrain_branch": true,
+                "freeze_pretrain_branch": true,
+                "modules_to_freeze": [
+                    "blocks",
+                    "input_blocks",
+                    "input_layer",
+                    "out_blocks",
+                    "out_layer",
+                    "t_embedder"
+                ]
+            }
+        }
+    },
+    "dataset": {
+        "name": "AniGenImageConditionedSLat",
+        "args": {
+            "latent_model": "dinov2_vitl14_reg_anigen_slat_mesh_dae_final",
+            "use_joint_num_cond": false,
+            "slat_dec_path": "ckpts/anigen/slat_dae",
+            "slat_dec_ckpt": "final",
+            "min_aesthetic_score": 4.5,
+            "max_num_voxels": 32768,
+            "image_size": 518,
+            "normalization": {
+                "mean": [
+                    -2.1687545776367188,
+                    -0.004347046371549368,
+                    -0.13352349400520325,
+                    -0.08418072760105133,
+                    -0.5271206498146057,
+                    0.7238689064979553,
+                    -1.1414450407028198,
+                    1.2039363384246826,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0
+                ],
+                "std": [
+                    2.377650737762451,
+                    2.386378288269043,
+                    2.124418020248413,
+                    2.1748552322387695,
+                    2.663944721221924,
+                    2.371192216873169,
+                    2.6217446327209473,
+                    2.684523105621338,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1
+                ],
+                "mean_skl": [
+                    0,
+                    0,
+                    0,
+                    0
+                ],
+                "std_skl": [
+                    1,
+                    1,
+                    1,
+                    1
+                ]
+            }
+        }
+    },
+    "trainer": {
+        "name": "AniGenImageConditionedSparseFlowMatchingCFGTrainer",
+        "args": {
+            "max_steps": 1000000,
+            "batch_size_per_gpu": 12,
+            "batch_split": 1,
+            "optimizer": {
+                "name": "AdamW",
+                "args": {
+                    "lr": 0.0001,
+                    "weight_decay": 0.0
+                }
+            },
+            "ema_rate": [
+                0.9999
+            ],
+            "fp16_mode": "inflat_all",
+            "fp16_scale_growth": 0.001,
+            "elastic": {
+                "name": "LinearMemoryController",
+                "args": {
+                    "target_ratio": 0.75,
+                    "max_mem_ratio_start": 0.5
+                }
+            },
+            "grad_clip": {
+                "name": "AdaptiveGradClipper",
+                "args": {
+                    "max_norm": 1.0,
+                    "clip_percentile": 95
+                }
+            },
+            "i_log": 500,
+            "i_sample": 5000,
+            "i_save": 1000,
+            "p_uncond": 0.1,
+            "use_joint_num_cond": false,
+            "p_uncond_joint_num": 0.1,
+            "t_schedule": {
+                "name": "logitNormal",
+                "args": {
+                    "mean": 1.0,
+                    "std": 1.0
+                }
+            },
+            "sigma_min": 1e-05,
+            "image_cond_model": "dinov2_vitl14_reg"
+        }
+    }
+}

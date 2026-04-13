@@ -1,0 +1,141 @@
+{
+    "models": {
+        "encoder": {
+            "name": "AniGenSparseStructureEncoder",
+            "args": {
+                "in_channels": 1,
+                "in_channels_skl": 1,
+                "latent_channels": 8,
+                "latent_channels_skl": 4,
+                "num_res_blocks": 2,
+                "num_res_blocks_middle": 2,
+                "channels": [
+                    32,
+                    128,
+                    512
+                ],
+                "use_fp16": true,
+                "encode_global": false,
+                "encode_global_skl": false,
+                "use_pretrain_branch": true,
+                "freeze_pretrain_branch": true,
+                "modules_to_freeze": [
+                    "blocks",
+                    "input_layer",
+                    "middle_block",
+                    "out_layer"
+                ],
+                "latent_denoising": false,
+                "latent_denoising_skl": true,
+                "normalize_z": false,
+                "normalize_z_skl": true,
+                "normalize_scale": 1.0
+            }
+        },
+        "decoder": {
+            "name": "AniGenSparseStructureDecoder",
+            "args": {
+                "out_channels": 1,
+                "out_channels_skl": 1,
+                "latent_channels": 8,
+                "latent_channels_skl": 4,
+                "num_res_blocks": 2,
+                "num_res_blocks_middle": 2,
+                "channels": [
+                    512,
+                    128,
+                    32
+                ],
+                "use_fp16": true,
+                "encode_global": false,
+                "encode_global_skl": false,
+                "use_pretrain_branch": true,
+                "freeze_pretrain_branch": true,
+                "modules_to_freeze": [
+                    "blocks",
+                    "input_layer",
+                    "middle_block",
+                    "out_layer"
+                ],
+                "normalize_z": false,
+                "normalize_z_skl": false,
+                "normalize_scale": 1.0
+            }
+        }
+    },
+    "dataset": {
+        "name": "AniGenSparseStructure",
+        "args": {
+            "resolution": 64,
+            "min_aesthetic_score": 4.5,
+            "skl_dilation_iter": 2
+        }
+    },
+    "trainer": {
+        "name": "AniGenSparseStructureVaeTrainer",
+        "args": {
+            "latent_denoising": false,
+            "latent_denoising_gamma": 1.0,
+            "latent_denoising_skl": true,
+            "latent_denoising_gamma_skl": 1.0,
+            "latent_time_max": 0.75,
+            "latent_time_max_skl": 0.25,
+            "latent_achive_max_step": 10000,
+            "latent_achive_max_step_skl": 10000,
+            "max_steps": 1000000,
+            "batch_size_per_gpu": 32,
+            "batch_split": 1,
+            "optimizer": {
+                "name": "AdamW",
+                "args": {
+                    "lr": 0.0001,
+                    "weight_decay": 0.0
+                }
+            },
+            "log_param_stats": false,
+            "lr_scheduler": {
+                "name": "SequentialLR",
+                "schedulers": [
+                    {
+                        "name": "LinearLR",
+                        "args": {
+                            "start_factor": 1e-06,
+                            "end_factor": 1.0,
+                            "total_iters": 1000
+                        }
+                    },
+                    {
+                        "name": "CosineAnnealingLR",
+                        "args": {
+                            "T_max": 1000000,
+                            "eta_min": 0.0
+                        }
+                    }
+                ],
+                "args": {
+                    "milestones": [
+                        1000
+                    ]
+                }
+            },
+            "ema_rate": [
+                0.9999
+            ],
+            "fp16_mode": "inflat_all",
+            "fp16_scale_growth": 0.001,
+            "grad_clip": {
+                "name": "AdaptiveGradClipper",
+                "args": {
+                    "max_norm": 1.0,
+                    "clip_percentile": 95
+                }
+            },
+            "i_log": 500,
+            "i_sample": 5000,
+            "i_save": 5000,
+            "loss_type": "dice",
+            "lambda_kl": 0.001,
+            "lambda_kl_skl": 0.001
+        }
+    }
+}

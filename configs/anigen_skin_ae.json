@@ -1,0 +1,101 @@
+{
+    "models": {
+        "model": {
+            "name": "SkinAutoEncoder",
+            "args": {
+                "encoder_config": {
+                    "skin_feat_channels": 4,
+                    "skl_pos_embed_freq": 12,
+                    "jp_embedder_config": {
+                        "hidden_dim": 1024,
+                        "depth": 6,
+                        "jp_embed_attn": true
+                    },
+                    "jp_embed_dim": 1024,
+                    "relative_pe": true,
+                    "vert_feat_is_linear": true,
+                    "normalize_feat": true
+                },
+                "decoder_config": {
+                    "model_type": "tree",
+                    "skin_feat_channels": 4,
+                    "model_channels": 64,
+                    "num_blocks": 4,
+                    "vert_cross_blocks_num": 0
+                },
+                "use_fp16": true
+            }
+        }
+    },
+    "dataset": {
+        "name": "AniGenSparseFeat2Skeleton",
+        "args": {
+            "image_size": 512,
+            "model": "dinov2_vitl14_reg",
+            "resolution": 64,
+            "min_aesthetic_score": 4.5,
+            "max_num_voxels": 32768,
+            "load_cubvh": false,
+            "skl_dilation_iter": 2,
+            "test_mode": false,
+            "is_test": false,
+            "filter_bad_skin": true
+        }
+    },
+    "trainer": {
+        "name": "AniGenSkinAETrainer",
+        "args": {
+            "num_skin_samples": 4096,
+            "max_steps": 1000001,
+            "batch_size_per_gpu": 32,
+            "batch_split": 1,
+            "optimizer": {
+                "name": "AdamW",
+                "args": {
+                    "lr": 1e-4,
+                    "weight_decay": 0.0
+                }
+            },
+            "log_param_stats": false,
+            "lr_scheduler": {
+                "name": "SequentialLR",
+                "schedulers": [
+                    {
+                        "name": "LinearLR",
+                        "args": {
+                            "start_factor": 1e-6,
+                            "end_factor": 1.0,
+                            "total_iters": 1000
+                        }
+                    },
+                    {
+                        "name": "CosineAnnealingLR",
+                        "args": {
+                            "T_max": 1000000,
+                            "eta_min": 0.0
+                        }
+                    }
+                ],
+                "args": {
+                    "milestones": [1000]
+                }
+            },
+            "ema_rate": [
+                0.9999
+            ],
+            "fp16_mode": "inflat_all",
+            "fp16_scale_growth": 0.001,
+            "grad_clip": {
+                "name": "AdaptiveGradClipper",
+                "args": {
+                    "max_norm": 1.0,
+                    "clip_percentile": 95
+                }
+            },
+            "i_log": 5000,
+            "i_sample": 5000,
+            "i_save": 1000,
+            "lambda_kl_skin": 1.0
+        }
+    }
+}

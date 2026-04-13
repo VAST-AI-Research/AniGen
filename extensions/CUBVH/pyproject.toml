@@ -1,0 +1,37 @@
+[build-system]
+requires = [
+  "setuptools>=69",
+  "wheel",
+  "ninja",
+  "pybind11",
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cubvh"
+version = "0.1.2"
+description = "CUDA BVH implementation"
+readme = "readme.md"
+requires-python = ">=3.8"
+authors = [
+  { name = "Jiaxiang Tang (ashawkey)" },
+  { name = "Yi-Hua Huang (yihua7)", email = "huangyihua16@mails.ucas.ac.cn" },
+]
+license = { file = "LICENSE" }
+dependencies = [
+  "ninja",
+  "pybind11",
+  "trimesh",
+  "torch",
+  "numpy",
+  "kiui",
+]
+
+[project.urls]
+Repository = "https://github.com/yihua7/cubvh"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["cubvh"]

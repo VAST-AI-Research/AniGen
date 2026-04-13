@@ -1,0 +1,1 @@
+python setup.py install && pip install --no-build-isolation .
