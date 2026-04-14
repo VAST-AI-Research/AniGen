@@ -143,7 +143,7 @@ Then, you can access the demo at the address shown in the terminal.
 
 ### Training Data
 
-Sample training data is available at [AniGen_sample_data](https://huggingface.co/datasets/VAST-AI/AniGen_sample_data). To prepare your own data, refer to [TRELLIS](https://github.com/microsoft/TRELLIS) and the sample data format.
+Sample training data is available at [AniGen-Sample-Dataset](https://huggingface.co/datasets/VAST-AI/AniGen-Sample-Dataset). To prepare your own data, refer to [TRELLIS](https://github.com/microsoft/TRELLIS) and the sample data format.
 
 ### Prerequisites
 
