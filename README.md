@@ -213,11 +213,9 @@ If you find this work helpful, please consider citing our paper:
 
 ```bibtex
 @article{huang2026anigen,
-  title     = {AniGen: Unified $S^3$ Fields for Animatable 3D Asset Generation},
-  author    = {Huang, Yi-Hua and Zhou, Zi-Xin and He, Yuting and Chang, Chirui
-               and Pu, Cheng-Feng and Yang, Ziyi and Guo, Yuan-Chen
-               and Cao, Yan-Pei and Qi, Xiaojuan},
-  journal   = {ACM SIGGRAPH},
-  year      = {2026}
+  title={AniGen: Unified $ S\^{} 3$ Fields for Animatable 3D Asset Generation},
+  author={Huang, Yi-Hua and Zou, Zi-Xin and He, Yuting and Chang, Chirui and Pu, Cheng-Feng and Yang, Ziyi and Guo, Yuan-Chen and Cao, Yan-Pei and Qi, Xiaojuan},
+  journal={arXiv preprint arXiv:2604.08746},
+  year={2026}
 }
 ```
