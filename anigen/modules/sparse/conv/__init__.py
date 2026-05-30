@@ -15,7 +15,10 @@ def __from_env():
 
 __from_env()
 
-if BACKEND == 'torchsparse':
+import os
+if os.environ.get("SPARSE_CONV_BACKEND") == "flex_gemm":
+    from .conv_flex_gemm import *
+elif BACKEND == 'torchsparse':
     from .conv_torchsparse import *
 elif BACKEND == 'spconv':
     from .conv_spconv import *

@@ -1,11 +1,62 @@
 from typing import *
+import os
 import torch
 import torch.nn as nn
 from . import BACKEND, DEBUG
 SparseTensorData = None # Lazy import
 
+# On Apple Silicon the sparse-conv kernel is routed to flex_gemm (Metal) while
+# BACKEND stays 'spconv' to pick the spconv-family wiring. spconv itself is
+# CUDA-only and not installed, so its SparseConvTensor cannot back the data
+# holder. When SPARSE_CONV_BACKEND=flex_gemm we instead use a lightweight,
+# pure-torch holder that mirrors the handful of SparseConvTensor attributes the
+# codebase touches (features / indices / spatial_shape / dense / ...). CUDA
+# boxes leave SPARSE_CONV_BACKEND unset and are completely unaffected.
+USE_FLEX_GEMM = os.environ.get("SPARSE_CONV_BACKEND") == "flex_gemm"
+
+
+class FlexGemmSparseData:
+    """Minimal spconv.SparseConvTensor-compatible holder backed by real tensors.
+
+    Only the attributes accessed elsewhere in the sparse module are provided.
+    flex_gemm consumes ``features`` / ``indices`` directly, so no neighbour
+    rule/hashmap bookkeeping lives here.
+    """
+
+    def __init__(self, features, indices, spatial_shape, batch_size, *args, **kwargs):
+        self._features = features
+        self.indices = indices
+        self.spatial_shape = list(spatial_shape)
+        self.batch_size = int(batch_size)
+
+    @property
+    def features(self):
+        return self._features
+
+    @features.setter
+    def features(self, value):
+        self._features = value
+
+    def replace_feature(self, features):
+        new = FlexGemmSparseData(features, self.indices, self.spatial_shape, self.batch_size)
+        return new
+
+    def dense(self):
+        feats = self._features
+        C = feats.shape[1]
+        out = torch.zeros(
+            self.batch_size, *self.spatial_shape, C,
+            dtype=feats.dtype, device=feats.device,
+        )
+        idx = self.indices.long()
+        out[idx[:, 0], idx[:, 1], idx[:, 2], idx[:, 3]] = feats
+        # NCWHD layout to match spconv's dense() (channels first).
+        return out.permute(0, 4, 1, 2, 3).contiguous()
+
 import importlib
-if BACKEND == 'torchsparse':
+if USE_FLEX_GEMM:
+    SparseTensorData = FlexGemmSparseData
+elif BACKEND == 'torchsparse':
     SparseTensorData = importlib.import_module('torchsparse').SparseTensor
 elif BACKEND == 'spconv':
     SparseTensorData = importlib.import_module('spconv.pytorch').SparseConvTensor
@@ -46,11 +97,13 @@ class SparseTensor:
         global SparseTensorData
         if SparseTensorData is None:
             import importlib
-            if BACKEND == 'torchsparse':
+            if USE_FLEX_GEMM:
+                SparseTensorData = FlexGemmSparseData
+            elif BACKEND == 'torchsparse':
                 SparseTensorData = importlib.import_module('torchsparse').SparseTensor
             elif BACKEND == 'spconv':
                 SparseTensorData = importlib.import_module('spconv.pytorch').SparseConvTensor
-                
+
         method_id = 0
         if len(args) != 0:
             method_id = 0 if isinstance(args[0], torch.Tensor) else 1
@@ -76,7 +129,10 @@ class SparseTensor:
                 shape = self.__cal_shape(feats, coords)
             if layout is None:
                 layout = self.__cal_layout(coords, shape[0])
-            if BACKEND == 'torchsparse':
+            if USE_FLEX_GEMM:
+                spatial_shape = list(coords.max(0)[0] + 1)[1:]
+                self.data = FlexGemmSparseData(feats, coords, spatial_shape, shape[0])
+            elif BACKEND == 'torchsparse':
                 self.data = SparseTensorData(feats, coords, **kwargs)
             elif BACKEND == 'spconv':
                 spatial_shape = list(coords.max(0)[0] + 1)[1:]
@@ -249,6 +305,15 @@ class SparseTensor:
     def replace(self, feats: torch.Tensor, coords: Optional[torch.Tensor] = None) -> 'SparseTensor':
         new_shape = [self.shape[0]]
         new_shape.extend(feats.shape[1:])
+        if USE_FLEX_GEMM:
+            new_data = FlexGemmSparseData(
+                feats,
+                self.data.indices if coords is None else coords,
+                self.data.spatial_shape,
+                self.data.batch_size,
+            )
+            new_tensor = SparseTensor(new_data, shape=torch.Size(new_shape), layout=self.layout, scale=self._scale, spatial_cache=self._spatial_cache)
+            return new_tensor
         if BACKEND == 'torchsparse':
             new_data = SparseTensorData(
                 feats=feats,
