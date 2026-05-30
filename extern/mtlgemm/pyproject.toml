@@ -1,0 +1,30 @@
+[build-system]
+requires = [
+    "setuptools>=64",
+    "wheel",
+    "torch",
+]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "flex_gemm"
+version = "1.0.0"
+description = "A Cross-Platform Backend for High-Performance Sparse Convolutions"
+requires-python = ">=3.8"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Jianfeng Xiang", email = "belljig@outlook.com" }
+]
+dependencies = [
+    # On macOS, mtlgemm's metal_context.mm calls
+    # at::mps::dispatch_sync_with_rethrow which was added to that namespace
+    # in PyTorch 2.11.0 (pytorch/pytorch#167445, merged 2025-11-11). Earlier
+    # stable versions (2.6 – 2.10) only expose it via at::native::mps::.
+    "torch>=2.11.0; platform_system == 'Darwin'",
+    "torch>=2.4.0; platform_system != 'Darwin'",
+    "triton>=3.2.0; platform_system == 'Linux'",
+    "triton-windows>=3.2.0; platform_system == 'Windows'",
+    "filelock",
+]

@@ -415,3 +415,11 @@ temp_*
 .vscode
 .venv-mac/
 results_mac/
+
+# Vendored Metal packages build artifacts (extern/)
+extern/*/build/
+extern/*/*.egg-info/
+extern/**/__pycache__/
+extern/**/*.so
+extern/**/*.o
+extern/**/*.metallib

@@ -1,0 +1,7 @@
+[submodule "third_party/cubvh"]
+	path = third_party/cubvh
+	url = https://github.com/JeffreyXiang/cubvh.git
+	branch = trellis.2
+[submodule "third_party/mtlbvh"]
+	path = third_party/mtlbvh
+	url = https://github.com/pedronaugusto/mtlbvh.git

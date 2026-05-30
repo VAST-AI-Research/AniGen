@@ -1,0 +1,24 @@
+# Build artifacts
+build/
+dist/
+*.egg-info/
+*.so
+*.dylib
+*.metallib
+*.air
+
+# Python
+__pycache__/
+*.py[cod]
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# pyenv
+.python-version
+
+# OS
+.DS_Store
