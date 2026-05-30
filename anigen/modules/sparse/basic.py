@@ -42,6 +42,9 @@ class FlexGemmSparseData:
         return new
 
     def dense(self):
+        # Bounding-box sized: the grid is (coords max + 1), NOT the full model
+        # resolution that spconv's dense() pads to. Sufficient for flex_gemm's
+        # occupancy-bounded use; callers must not assume full-res dimensions.
         feats = self._features
         C = feats.shape[1]
         out = torch.zeros(
@@ -130,7 +133,9 @@ class SparseTensor:
             if layout is None:
                 layout = self.__cal_layout(coords, shape[0])
             if USE_FLEX_GEMM:
-                spatial_shape = list(coords.max(0)[0] + 1)[1:]
+                # Plain Python ints (not 0-d torch tensors) so spatial_shape
+                # stays serializable and doesn't keep GPU tensors alive.
+                spatial_shape = (coords[:, 1:].max(0)[0] + 1).tolist()
                 self.data = FlexGemmSparseData(feats, coords, spatial_shape, shape[0])
             elif BACKEND == 'torchsparse':
                 self.data = SparseTensorData(feats, coords, **kwargs)
@@ -306,6 +311,9 @@ class SparseTensor:
         new_shape = [self.shape[0]]
         new_shape.extend(feats.shape[1:])
         if USE_FLEX_GEMM:
+            # Carries the parent's spatial_shape/batch_size as-is; it does NOT
+            # recompute the spatial extent when coords change. Fine for the
+            # feats-only hot path (submanifold conv keeps coords fixed).
             new_data = FlexGemmSparseData(
                 feats,
                 self.data.indices if coords is None else coords,

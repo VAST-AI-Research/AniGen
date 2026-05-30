@@ -1,4 +1,5 @@
 import os, torch, pytest
+os.environ["SPARSE_CONV_BACKEND"] = "flex_gemm"   # don't rely solely on conftest's bootstrap ordering
 os.environ.setdefault("SPARSE_BACKEND", "spconv")
 
 
