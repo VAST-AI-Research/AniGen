@@ -413,3 +413,5 @@ output/
 output*/
 temp_*
 .vscode
+.venv-mac/
+results_mac/
