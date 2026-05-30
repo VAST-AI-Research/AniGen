@@ -30,6 +30,51 @@ def resolve_device(requested: str = "mps"):
     return torch.device(requested)
 
 
+def install_nvdiffrast_alias() -> None:
+    """Make `import nvdiffrast.torch` resolve to mtldiffrast (Metal) on non-CUDA.
+
+    utils3d.torch.rasterization hard-imports nvdiffrast.torch at module top;
+    mtldiffrast is the API-compatible Metal port. We expose the nvdiffrast
+    context-class names utils3d's RastContext instantiates
+    (RasterizeGLContext for the default backend='gl', RasterizeCudaContext for
+    backend='cuda') as aliases of MtlRasterizeContext so RastContext
+    construction works unchanged, and re-export rasterize/interpolate/antialias/
+    texture from mtldiffrast.
+    """
+    import sys, types
+    try:
+        import torch
+        if torch.cuda.is_available():
+            return  # real nvdiffrast path on CUDA boxes; do not shim
+    except Exception:
+        pass
+    try:
+        import mtldiffrast.torch as _mdr
+    except Exception:
+        return  # mtldiffrast unavailable; leave nvdiffrast absent (errors loudly if used)
+    if "nvdiffrast.torch" in sys.modules:
+        return
+    nvd = types.ModuleType("nvdiffrast")
+    nvd_torch = types.ModuleType("nvdiffrast.torch")
+    # re-export everything mtldiffrast.torch provides (rasterize, interpolate,
+    # antialias, texture, DepthPeeler, MtlRasterizeContext, ...).
+    for _n in dir(_mdr):
+        if not _n.startswith("__"):
+            setattr(nvd_torch, _n, getattr(_mdr, _n))
+    # nvdiffrast context-class names utils3d's RastContext expects -> Metal context.
+    for _alias in ("RasterizeCudaContext", "RasterizeGLContext"):
+        if not hasattr(nvd_torch, _alias):
+            setattr(nvd_torch, _alias, _mdr.MtlRasterizeContext)
+    # valid specs so importlib.util.find_spec won't choke (e.g. conftest stub finder).
+    import importlib.machinery as _m
+    nvd.__spec__ = _m.ModuleSpec("nvdiffrast", loader=None, is_package=True)
+    nvd.__path__ = []
+    nvd_torch.__spec__ = _m.ModuleSpec("nvdiffrast.torch", loader=None)
+    nvd.torch = nvd_torch
+    sys.modules["nvdiffrast"] = nvd
+    sys.modules["nvdiffrast.torch"] = nvd_torch
+
+
 def install_knn_shim() -> None:
     """Replace pytorch3d.ops.knn_points/ball_query with CPU cKDTree drop-ins.
 
@@ -61,4 +106,5 @@ def install_knn_shim() -> None:
 
 
 configure_mps_environment()
+install_nvdiffrast_alias()
 install_knn_shim()

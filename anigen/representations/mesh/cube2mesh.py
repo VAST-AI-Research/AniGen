@@ -2,6 +2,7 @@ import torch
 from ...modules.sparse import SparseTensor
 from easydict import EasyDict as edict
 from .utils_cube import *
+from .utils_cube import _default_device
 from .flexicubes.flexicubes import FlexiCubes
 
 
@@ -56,11 +57,13 @@ class MeshExtractResult:
 
 
 class SparseFeatures2Mesh:
-    def __init__(self, device="cuda", res=64, use_color=True):
+    def __init__(self, device=None, res=64, use_color=True):
         '''
         a model to generate a mesh from sparse features structures using flexicube
         '''
         super().__init__()
+        if device is None:
+            device = _default_device()
         self.device=device
         self.res = res
         self.mesh_extractor = FlexiCubes(device=device)

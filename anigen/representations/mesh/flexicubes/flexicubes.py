@@ -38,8 +38,20 @@ __all__ = [
 ]
 
 
+def _default_device():
+    # Pick the active accelerator: CUDA on NVIDIA boxes, MPS on Apple Silicon,
+    # else CPU. Used only as a default; explicit device args are respected.
+    if torch.cuda.is_available():
+        return 'cuda'
+    if getattr(torch.backends, 'mps', None) is not None and torch.backends.mps.is_available():
+        return 'mps'
+    return 'cpu'
+
+
 class FlexiCubes:
-    def __init__(self, device="cuda", use_color=True):
+    def __init__(self, device=None, use_color=True):
+        if device is None:
+            device = _default_device()
 
         self.device = device
         self.use_color = use_color

@@ -4,6 +4,7 @@ from typing import Optional
 from ...modules.sparse import SparseTensor
 from easydict import EasyDict as edict
 from .utils_cube import *
+from .utils_cube import _default_device
 from .flexicubes.flexicubes import FlexiCubes
 from pytorch3d.ops import knn_points
 
@@ -67,7 +68,7 @@ class AniGenMeshExtractResult:
 class AniGenSparseFeatures2Mesh:
     def __init__(
         self,
-        device="cuda",
+        device=None,
         res=64,
         use_color=True,
         skin_feat_channels=32,
@@ -85,6 +86,8 @@ class AniGenSparseFeatures2Mesh:
         a model to generate a mesh from sparse features structures using flexicube
         '''
         super().__init__()
+        if device is None:
+            device = _default_device()
         self.device=device
         self.res = res
         self.mesh_extractor = FlexiCubes(device=device, use_color=use_color)
@@ -361,7 +364,9 @@ class AniGenSparseFeatures2Mesh:
 
 
 class AniGenSklFeatures2Skeleton:
-    def __init__(self, skin_feat_channels=32, device="cuda", res=64, use_conf_jp=False, use_conf_skin=False, predict_skin=True, defined_on_center=False, jp_hyper_continuous=False, jp_residual_fields=False):
+    def __init__(self, skin_feat_channels=32, device=None, res=64, use_conf_jp=False, use_conf_skin=False, predict_skin=True, defined_on_center=False, jp_hyper_continuous=False, jp_residual_fields=False):
+        if device is None:
+            device = _default_device()
         self.device=device
         self.res = res
         self.use_conf_jp = use_conf_jp or jp_hyper_continuous

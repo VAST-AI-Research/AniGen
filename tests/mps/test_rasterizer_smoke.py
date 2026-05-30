@@ -7,7 +7,7 @@ rasterization (used for texture-bake / hole-fill visibility in
 
 Outcomes (see Step 3 below):
   * mtldiffrast renderer construct + trivial rasterize  -> PASS on MPS.
-  * utils3d CPU rasterization                           -> NOT VIABLE (xfail).
+  * utils3d rasterization via nvdiffrast->mtldiffrast alias -> PASS on Metal (Task 11a).
 """
 import torch
 import pytest
@@ -59,70 +59,66 @@ def test_mtldiffrast_rasterize_single_triangle():
 
 
 # ---------------------------------------------------------------------------
-# Step 3 (THE RISK CHECK): does utils3d CPU rasterization work on Mac?
+# Step 3 (THE RISK CHECK): does utils3d rasterization work on Mac?
 #
-# OUTCOME: B -- NOT VIABLE.
+# OUTCOME: VIABLE on Metal via the nvdiffrast->mtldiffrast alias (Task 11a).
 #
-# ``anigen/utils/postprocessing_utils.py`` calls
-#   rastctx = utils3d.torch.RastContext(backend=_rast_backend())   # 'cpu' on Mac
+# ``anigen/utils/postprocessing_utils.py`` (hole-fill visibility / texture bake)
+# calls
+#   rastctx = utils3d.torch.RastContext(backend=_rast_backend())   # 'cuda' on Mac
 #   utils3d.torch.rasterize_triangle_faces(rastctx, verts[None], faces, ...)
 #
-# But the INSTALLED utils3d (1.3) cannot support this on Mac:
+# utils3d 0.0.2's ``utils3d/torch/rasterization.py`` hard-imports
+# ``nvdiffrast.torch`` at module top and ``RastContext`` instantiates
+# ``dr.RasterizeGLContext`` / ``dr.RasterizeCudaContext``. There is NO 'cpu'
+# backend (backend in {'gl','cuda'} only).
 #
-#   1. ``utils3d/torch/rasterization.py`` unconditionally does
-#      ``import nvdiffrast.torch as dr`` at module top -- no fallback. Merely
-#      touching ``utils3d.torch.RastContext`` raises
-#      ``ModuleNotFoundError: No module named 'nvdiffrast'`` on a clean Mac env.
-#   2. ``RastContext`` only accepts backend in {'gl', 'cuda'}; ``backend='cpu'``
-#      raises ``ValueError('Unknown backend: cpu')``. There is NO CPU backend.
-#   3. ``rasterize_triangle_faces`` is not even a top-level export of this
-#      utils3d version (the real function is ``rasterize_triangles``).
+# ``anigen_mps.install_nvdiffrast_alias()`` (run on ``import anigen_mps``)
+# builds a synthetic ``nvdiffrast.torch`` backed by mtldiffrast and aliases both
+# context-class names to ``MtlRasterizeContext``. So the hard import succeeds and
+# the rasterizer runs on Metal. ``_rast_backend()`` returns 'cuda' on Mac (which
+# now maps to the Metal context); 'gl' would too, since both aliases point at
+# MtlRasterizeContext. We exercise the 'cuda' path here because that is exactly
+# what postprocessing_utils.py requests.
 #
-# Task-11 implication: texture-bake / hole-fill visibility via utils3d CPU is
-# NOT viable. Texture baking must be gated behind a --no_texture path so that
-# mesh + skeleton + skin still export. (The --no_texture flag is Task 11's job,
-# not added here.)
-#
-# This test PROVES the failure precisely instead of pretending it works.
-# Note: tests/mps/conftest.py registers a lazy stub for ``nvdiffrast`` so that
-# ``import anigen.*`` can complete on a clean Mac. That stub would mask the
-# ModuleNotFoundError above. We therefore detect EITHER the real
-# ModuleNotFoundError (no stub) OR the no-CPU-backend ValueError (stub active);
-# both demonstrate utils3d CPU rasterization is non-functional on Mac.
+# This test runs the SAME arg shapes postprocessing_utils.py uses
+# (perspective_from_fov_xy/view_look_at, verts [1,V,3], int faces, square res)
+# and asserts a finite buffer with at least one covered pixel.
 # ---------------------------------------------------------------------------
-@pytest.mark.xfail(
-    reason=(
-        "OUTCOME B: utils3d 1.3 CPU rasterization is NOT viable on Mac. "
-        "utils3d/torch/rasterization.py hard-imports nvdiffrast and RastContext "
-        "has no 'cpu' backend. Task 11 must gate texture baking behind "
-        "--no_texture so mesh+skeleton+skin still export."
-    ),
-    strict=True,
-    raises=(ModuleNotFoundError, ValueError, AttributeError),
-)
-def test_utils3d_cpu_rasterization_viability():
-    import utils3d
+@pytest.mark.skipif(not torch.backends.mps.is_available(), reason="MPS only")
+def test_utils3d_rasterization_on_metal():
+    import anigen_mps  # noqa: F401  -- installs the nvdiffrast->mtldiffrast alias
+    import utils3d.torch as u3
 
-    # Mirrors postprocessing_utils.py: build a CPU rast context, then rasterize
-    # a tiny triangle. EITHER step raises on Mac (see module docstring above).
-    rastctx = utils3d.torch.RastContext(backend="cpu")  # ValueError / ModuleNotFoundError
+    dev = "mps"
+    # 'cuda' is what anigen.utils.postprocessing_utils._rast_backend() requests on
+    # Mac; the alias routes it to mtldiffrast's MtlRasterizeContext (Metal).
+    rastctx = u3.RastContext(backend="cuda", device=dev)
 
     verts = torch.tensor(
         [[-0.5, -0.5, 0.0], [0.5, -0.5, 0.0], [0.0, 0.5, 0.0]],
         dtype=torch.float32,
+        device=dev,
     )
-    faces = torch.tensor([[0, 1, 2]], dtype=torch.int32)
-    view = utils3d.torch.view_look_at(
-        torch.tensor([0.0, 0.0, 2.0]),
-        torch.tensor([0.0, 0.0, 0.0]),
-        torch.tensor([0.0, 1.0, 0.0]),
+    faces = torch.tensor([[0, 1, 2]], dtype=torch.int32, device=dev)
+    view = u3.view_look_at(
+        torch.tensor([0.0, 0.0, 2.0], device=dev),
+        torch.tensor([0.0, 0.0, 0.0], device=dev),
+        torch.tensor([0.0, 1.0, 0.0], device=dev),
     )
-    projection = utils3d.torch.perspective_from_fov_xy(
-        torch.deg2rad(torch.tensor(40.0)), torch.deg2rad(torch.tensor(40.0)), 1, 3
+    projection = u3.perspective_from_fov_xy(
+        torch.deg2rad(torch.tensor(40.0, device=dev)),
+        torch.deg2rad(torch.tensor(40.0, device=dev)),
+        1,
+        3,
     )
-    buffers = utils3d.torch.rasterize_triangle_faces(  # AttributeError: not exported
+    buffers = u3.rasterize_triangle_faces(
         rastctx, verts[None], faces, 64, 64, view=view, projection=projection
     )
-    # If utils3d ever gains a working CPU backend, these assertions guard it.
-    assert torch.isfinite(buffers["mask"][0]).all()
-    assert (buffers["mask"][0] > 0).any()
+
+    mask = buffers["mask"][0]
+    face_id = buffers["face_id"][0]
+    assert torch.isfinite(mask).all()
+    assert torch.isfinite(face_id).all()
+    # A center-covering triangle MUST yield at least one covered pixel.
+    assert (mask > 0).any()

@@ -25,7 +25,11 @@ import anigen_mps  # noqa: F401  -- sets backend env vars at import time
 # stub so `import anigen.modules.sparse...` can complete on a clean macOS env.
 _OPTIONAL_NATIVE_DEPS = (
     "spconv", "torchsparse",          # sparse conv (Task 8/9)
-    "nvdiffrast", "diff_gaussian_rasterization", "diffoctreerast",
+    "diff_gaussian_rasterization", "diffoctreerast",
+    # NOTE: nvdiffrast is intentionally NOT stubbed here. anigen_mps.install_nvdiffrast_alias()
+    # (run on `import anigen_mps` above) provides a real (Metal-backed) nvdiffrast.torch
+    # aliased to mtldiffrast so utils3d.torch's hard `import nvdiffrast.torch` succeeds and
+    # rasterization actually runs on Metal (Task 11a). Stubbing it would clobber that.
     # NOTE: pytorch3d is intentionally NOT stubbed here. anigen_mps.install_knn_shim()
     # (run on `import anigen_mps` above) provides a real pytorch3d.ops with CPU
     # cKDTree knn_points/ball_query drop-ins (Task 9). Stubbing it would clobber

@@ -30,8 +30,11 @@ def _cuda_cleanup():
 
 
 def _rast_backend():
-    import torch as __t
-    return 'cuda' if __t.cuda.is_available() else 'cpu'
+    # utils3d.torch.RastContext only accepts {'gl', 'cuda'}; it has no 'cpu' backend.
+    # On Apple Silicon, anigen_mps.install_nvdiffrast_alias() maps the nvdiffrast
+    # context classes (RasterizeCudaContext/RasterizeGLContext) to mtldiffrast's
+    # MtlRasterizeContext, so 'cuda' routes through Metal. Always request 'cuda'.
+    return 'cuda'
 
 
 @torch.no_grad()

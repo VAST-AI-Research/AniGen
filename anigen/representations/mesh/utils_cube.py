@@ -5,7 +5,18 @@ cube_neighbor = torch.tensor([[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 
 cube_edges = torch.tensor([0, 1, 1, 5, 4, 5, 0, 4, 2, 3, 3, 7, 6, 7, 2, 6,
                 2, 0, 3, 1, 7, 5, 6, 4], dtype=torch.long, requires_grad=False)
      
-def construct_dense_grid(res, device='cuda'):
+def _default_device():
+    # Active accelerator default: CUDA, else MPS (Apple Silicon), else CPU.
+    if torch.cuda.is_available():
+        return 'cuda'
+    if getattr(torch.backends, 'mps', None) is not None and torch.backends.mps.is_available():
+        return 'mps'
+    return 'cpu'
+
+
+def construct_dense_grid(res, device=None):
+    if device is None:
+        device = _default_device()
     '''construct a dense grid based on resolution'''
     res_v = res + 1
     vertsid = torch.arange(res_v ** 3, device=device)
