@@ -3,7 +3,11 @@ import gc
 import numpy as np
 import torch
 import utils3d
-import nvdiffrast.torch as dr
+import torch as _torch
+if _torch.cuda.is_available():
+    import nvdiffrast.torch as dr
+else:
+    import mtldiffrast.torch as dr   # API-compatible Metal replacement
 from tqdm import tqdm
 import trimesh
 import trimesh.visual
@@ -23,6 +27,11 @@ def _cuda_cleanup():
     gc.collect()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
+
+
+def _rast_backend():
+    import torch as __t
+    return 'cuda' if __t.cuda.is_available() else 'cpu'
 
 
 @torch.no_grad()
@@ -75,7 +84,7 @@ def _fill_holes(
 
     # Rasterize
     visblity = torch.zeros(faces.shape[0], dtype=torch.int32, device=verts.device)
-    rastctx = utils3d.torch.RastContext(backend='cuda')
+    rastctx = utils3d.torch.RastContext(backend=_rast_backend())
     for i in tqdm(range(views.shape[0]), total=views.shape[0], disable=not verbose, desc='Rasterizing'):
         view = views[i]
         buffers = utils3d.torch.rasterize_triangle_faces(
@@ -477,7 +486,7 @@ def render_multiview_mesh_colors(
     faces_t = torch.tensor(faces.astype(np.int32), dtype=torch.int32, device='cuda')
     colors_t = torch.tensor(vertex_colors, dtype=torch.float32, device='cuda').clamp(0, 1)
 
-    rastctx = utils3d.torch.RastContext(backend='cuda')
+    rastctx = utils3d.torch.RastContext(backend=_rast_backend())
     observations = []
 
     for extr, intr in tqdm(
@@ -554,7 +563,7 @@ def bake_texture(
     if mode == 'fast':
         texture = torch.zeros((texture_size * texture_size, 3), dtype=torch.float32).cuda()
         texture_weights = torch.zeros((texture_size * texture_size), dtype=torch.float32).cuda()
-        rastctx = utils3d.torch.RastContext(backend='cuda')
+        rastctx = utils3d.torch.RastContext(backend=_rast_backend())
         for observation_cpu, mask_cpu, view_cpu, projection_cpu in tqdm(
             zip(observations_cpu, masks_cpu, views_cpu, projections_cpu),
             total=len(observations_cpu),
@@ -592,7 +601,7 @@ def bake_texture(
         _cuda_cleanup()
 
     elif mode == 'opt':
-        rastctx = utils3d.torch.RastContext(backend='cuda')
+        rastctx = utils3d.torch.RastContext(backend=_rast_backend())
         observations_cpu = [obs.flip(0).contiguous() for obs in observations_cpu]
         masks_cpu = [m.flip(0).contiguous() for m in masks_cpu]
         _uv = []

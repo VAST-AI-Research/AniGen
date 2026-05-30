@@ -74,7 +74,7 @@ def main():
         device=args.device,
         use_ema=args.use_ema
     )
-    pipeline.cuda()
+    pipeline.to(args.device)
 
     for idx, cur_image_path in enumerate(input_image_paths):
         # Per-image output directory.

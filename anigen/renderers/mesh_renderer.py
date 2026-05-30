@@ -1,5 +1,9 @@
 import torch
-import nvdiffrast.torch as dr
+import torch as _torch
+if _torch.cuda.is_available():
+    import nvdiffrast.torch as dr
+else:
+    import mtldiffrast.torch as dr   # API-compatible Metal replacement
 from easydict import EasyDict as edict
 from ..representations.mesh import MeshExtractResult
 import torch.nn.functional as F
@@ -49,7 +53,10 @@ class MeshRenderer:
             "ssaa": 1
         })
         self.rendering_options.update(rendering_options)
-        self.glctx = dr.RasterizeCudaContext(device=device)
+        if str(device).startswith("cuda"):
+            self.glctx = dr.RasterizeCudaContext(device=device)
+        else:
+            self.glctx = dr.MtlRasterizeContext(device=device)
         self.device=device
 
     def close(self):

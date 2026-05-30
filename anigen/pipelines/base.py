@@ -64,7 +64,11 @@ class Pipeline:
                 model.to(device)
 
     def cuda(self) -> None:
-        self.to(torch.device("cuda"))
+        try:
+            device = self.device
+        except RuntimeError:
+            device = torch.device("cuda")
+        self.to(torch.device(device))
 
     def cpu(self) -> None:
         self.to(torch.device("cpu"))
