@@ -105,6 +105,103 @@ def install_knn_shim() -> None:
         sys.modules["pytorch3d.ops"] = ops
 
 
+def _remap_cuda_device(arg, target):
+    """Map a 'cuda'/torch.device('cuda') argument onto `target`; pass others through."""
+    import torch
+    if isinstance(arg, str) and arg.split(":")[0] == "cuda":
+        return target
+    if isinstance(arg, torch.device) and arg.type == "cuda":
+        return torch.device(target)
+    return arg
+
+
+class _CudaToActiveDevice:
+    """Context manager: remap `.to('cuda')` calls to the active MPS/CPU device.
+
+    The DSINE torch.hub `hubconf.py` hardcodes `model.to(torch.device("cuda"))` and
+    `self.device = torch.device('cuda')`. On a non-CUDA box that raises
+    "Torch not compiled with CUDA enabled". Rather than rebind `torch.device` (which
+    breaks `isinstance(x, torch.device)` inside torch.load), we wrap nn.Module.to and
+    Tensor.to to remap any cuda destination to the active device for the duration of the
+    hub load. CUDA boxes never enter this path (guarded by torch.cuda.is_available()).
+    """
+
+    def __init__(self, device):
+        self._target = device
+        self._orig_module_to = None
+        self._orig_tensor_to = None
+
+    def __enter__(self):
+        import torch
+        target = self._target
+        self._orig_module_to = torch.nn.Module.to
+        self._orig_tensor_to = torch.Tensor.to
+        orig_module_to = self._orig_module_to
+        orig_tensor_to = self._orig_tensor_to
+
+        def module_to(self, *args, **kwargs):
+            if args:
+                args = (_remap_cuda_device(args[0], target),) + tuple(args[1:])
+            if "device" in kwargs:
+                kwargs["device"] = _remap_cuda_device(kwargs["device"], target)
+            return orig_module_to(self, *args, **kwargs)
+
+        def tensor_to(self, *args, **kwargs):
+            if args:
+                args = (_remap_cuda_device(args[0], target),) + tuple(args[1:])
+            if "device" in kwargs:
+                kwargs["device"] = _remap_cuda_device(kwargs["device"], target)
+            return orig_tensor_to(self, *args, **kwargs)
+
+        torch.nn.Module.to = module_to
+        torch.Tensor.to = tensor_to
+        return self
+
+    def __exit__(self, *exc):
+        import torch
+        if self._orig_module_to is not None:
+            torch.nn.Module.to = self._orig_module_to
+        if self._orig_tensor_to is not None:
+            torch.Tensor.to = self._orig_tensor_to
+        return False
+
+
+def cuda_to_active_device(device):
+    """Return a context manager mapping torch.device('cuda') -> `device` (Mac-only use)."""
+    return _CudaToActiveDevice(device)
+
+
+def upcast_pipeline_fp32(pipeline) -> None:
+    """Upcast fp16 flow/VAE models to fp32 in-place (Mac-only).
+
+    AniGen constructs the SS/SLAT flow models and the SS/SLAT decoders with
+    use_fp16=True (per their config.json), which runs convert_to_fp16() in __init__
+    and loads fp16 weights. MPS mishandles mixed fp16/fp32 matmuls. Each model exposes
+    convert_to_fp32(); call it where available and otherwise .float() the module so the
+    whole inference graph runs in fp32. No-op / never called on CUDA.
+    """
+    import torch
+    if torch.cuda.is_available():
+        return
+    for name, model in getattr(pipeline, "models", {}).items():
+        if not isinstance(model, torch.nn.Module):
+            continue
+        if hasattr(model, "convert_to_fp32"):
+            try:
+                model.convert_to_fp32()
+            except Exception:
+                pass
+        # convert_to_fp32() on these models only touches the "torso"/known submodules
+        # and can leave some skin/decoder submodules in fp16. A full .float() recursively
+        # casts every remaining fp16 param/buffer to fp32 (idempotent) so the entire
+        # inference graph is single-dtype — MPS will not tolerate mixed fp16/fp32 matmuls.
+        model.float()
+        if hasattr(model, "use_fp16"):
+            model.use_fp16 = False
+        if hasattr(model, "dtype"):
+            model.dtype = torch.float32
+
+
 configure_mps_environment()
 install_nvdiffrast_alias()
 install_knn_shim()

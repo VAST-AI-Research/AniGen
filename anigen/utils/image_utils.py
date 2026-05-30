@@ -43,14 +43,39 @@ def load_dsine(device='cuda'):
     hub_dir = torch.hub.get_dir()
     cached_repo = os.path.join(hub_dir, 'hugoycj_DSINE-hub_main')
 
-    if os.path.isdir(cached_repo):
-        print(f"Loading DSINE from cached hub repo: {cached_repo}")
-        predictor = torch.hub.load(cached_repo, "DSINE", source='local',
-                                   trust_repo=True, **hub_kwargs)
-    else:
-        print("Loading DSINE via torch.hub (requires network)...")
-        predictor = torch.hub.load("hugoycj/DSINE-hub:main", "DSINE",
-                                   trust_repo=True, **hub_kwargs)
+    # Mac/non-CUDA: the DSINE hubconf hardcodes torch.device("cuda"); remap it to the
+    # active device for the duration of the hub load. CUDA boxes use the real path.
+    import contextlib
+    cm = contextlib.nullcontext()
+    if not torch.cuda.is_available():
+        try:
+            import anigen_mps
+            cm = anigen_mps.cuda_to_active_device(device)
+        except Exception:
+            cm = contextlib.nullcontext()
+
+    with cm:
+        if os.path.isdir(cached_repo):
+            print(f"Loading DSINE from cached hub repo: {cached_repo}")
+            predictor = torch.hub.load(cached_repo, "DSINE", source='local',
+                                       trust_repo=True, **hub_kwargs)
+        else:
+            print("Loading DSINE via torch.hub (requires network)...")
+            predictor = torch.hub.load("hugoycj/DSINE-hub:main", "DSINE",
+                                       trust_repo=True, **hub_kwargs)
+
+    # Ensure the predictor (model + cached device + pixel_coords) live on the active device.
+    if not torch.cuda.is_available():
+        try:
+            dev = torch.device(device)
+            if hasattr(predictor, 'model'):
+                predictor.model.to(dev)
+                if hasattr(predictor.model, 'pixel_coords'):
+                    predictor.model.pixel_coords = predictor.model.pixel_coords.to(dev)
+            if hasattr(predictor, 'device'):
+                predictor.device = dev
+        except Exception:
+            pass
     return predictor
 
 def estimate_normal(image, predictor, device='cuda'):
