@@ -20,4 +20,7 @@ imageio
 tqdm
 omegaconf
 easydict
-utils3d @ git+https://github.com/EasternJournalist/utils3d.git@3fab839f0be9931dac7c8488eb0e1600c236e183
+# AniGen pins utils3d 0.0.2 (its postprocessing uses rasterize_triangle_faces /
+# compute_dual_graph etc.); NOT Pixal3D's 1.3. nvdiffrast (hard-imported by
+# utils3d.torch.rasterization) is aliased to mtldiffrast in anigen_mps bootstrap.
+utils3d @ git+https://github.com/EasternJournalist/utils3d.git@9a4eb15e4021b67b12c460c7057d642626897ec8
