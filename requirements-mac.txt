@@ -1,0 +1,23 @@
+# AniGen Apple Silicon inference environment — Python 3.10
+# torch>=2.11 required on Darwin for flex_gemm (at::mps::dispatch_sync_with_rethrow).
+# CUDA-only wheels (spconv-cuXX, nvdiffrast, flash-attn, CUDA pytorch3d) are intentionally absent.
+torch==2.12.0
+torchvision==0.27.0
+numpy>=1.24,<2
+scipy==1.15.3
+transformers==5.9.0
+safetensors==0.7.0
+huggingface-hub==1.16.4
+einops==0.8.2
+trimesh==4.10.1
+xatlas==0.0.11
+pymeshfix
+pyvista
+python-igraph
+opencv-python
+pillow
+imageio
+tqdm
+omegaconf
+easydict
+utils3d @ git+https://github.com/EasternJournalist/utils3d.git@3fab839f0be9931dac7c8488eb0e1600c236e183
