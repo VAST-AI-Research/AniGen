@@ -25,6 +25,8 @@ def naive_varlen_attention(
     H, C = q.shape[1], q.shape[2]
     Cv = v.shape[2]
     scale = 1.0 / math.sqrt(C)
+    assert sum(q_seqlen) == q.shape[0] and sum(kv_seqlen) == k.shape[0], \
+        "naive_varlen_attention: seqlens do not cover all tokens"
     out = torch.empty(q.shape[0], H, Cv, device=q.device, dtype=q.dtype)
     qo = ko = 0
     for sq, sk in zip(q_seqlen, kv_seqlen):
