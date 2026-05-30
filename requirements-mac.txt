@@ -20,6 +20,15 @@ imageio
 tqdm
 omegaconf
 easydict
+scikit-learn>=1.5,<1.6   # skin_utils PCA; <1.6 keeps numpy<2 compatibility
+pygltflib==1.16.5        # GLB export (export_utils) — pure Python
+plyfile==1.0.3           # utils3d dep; >=1.1 forces numpy>=2, so pin to last numpy<2-compatible release
+# Background removal (image_utils). rembg pulls onnxruntime (runs the U2Net ONNX
+# model) and opencv-python-headless. opencv-python-headless>=4.12 forces numpy>=2,
+# so pin <4.12 to preserve the numpy<2 constraint above.
+rembg==2.0.69
+onnxruntime==1.23.2
+opencv-python-headless<4.12
 # AniGen pins utils3d 0.0.2 (its postprocessing uses rasterize_triangle_faces /
 # compute_dual_graph etc.); NOT Pixal3D's 1.3. nvdiffrast (hard-imported by
 # utils3d.torch.rasterization) is aliased to mtldiffrast in anigen_mps bootstrap.

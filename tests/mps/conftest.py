@@ -35,11 +35,16 @@ _OPTIONAL_NATIVE_DEPS = (
     # cKDTree knn_points/ball_query drop-ins (Task 9). Stubbing it would clobber
     # those with no-op stand-ins.
     "kaolin", "open3d", "vox2seq",  # rendering / 3D
-    "rembg",                          # image preprocessing
     "flash_attn", "xformers",         # other attention backends (naive is active)
     "cubvh",                          # training-only CUDA ext
     "lpips", "muon",                  # training losses / optimizer
-    "pandas", "plyfile", "pygltflib", "sklearn",  # misc pipeline/data utils
+    # NOTE: rembg, scikit-learn (sklearn), pygltflib, plyfile are now installed
+    # for real on the Mac inference env (Task 11b-prep), so they are NOT stubbed.
+    # `pandas` is intentionally NOT stubbed: scikit-learn imports it optionally and,
+    # when present, evaluates `parse_version(pd.__version__)`. A lazy stub makes
+    # `pandas` look importable (non-None) but lacks `__version__`, which breaks
+    # sklearn's `if pd is not None and ...` guard. Leaving pandas truly absent lets
+    # sklearn set `pd = None` and skip the version check cleanly.
 )
 
 
