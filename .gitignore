@@ -423,3 +423,4 @@ extern/**/__pycache__/
 extern/**/*.so
 extern/**/*.o
 extern/**/*.metallib
+.pytest_cache/
