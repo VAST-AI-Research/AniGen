@@ -22,12 +22,16 @@ def __from_env():
         BACKEND = env_sparse_backend
     if env_sparse_debug is not None:
         DEBUG = env_sparse_debug == '1'
-    if env_sparse_attn is not None and env_sparse_attn in ['xformers', 'flash_attn']:
+    if env_sparse_attn is not None and env_sparse_attn in ['xformers', 'flash_attn', 'naive']:
         ATTN = env_sparse_attn
-    elif importlib.util.find_spec('flash_attn') is not None:
-        ATTN = 'flash_attn'
-    elif importlib.util.find_spec('xformers.ops') is not None:
-        ATTN = 'xformers'
+    else:
+        try:
+            if importlib.util.find_spec('flash_attn') is not None:
+                ATTN = 'flash_attn'
+            elif importlib.util.find_spec('xformers') is not None and importlib.util.find_spec('xformers.ops') is not None:
+                ATTN = 'xformers'
+        except (ImportError, ModuleNotFoundError, ValueError):
+            pass
         
     print(f"[SPARSE] Backend: {BACKEND}, Attention: {ATTN}")
         
@@ -43,7 +47,7 @@ def set_debug(debug: bool):
     global DEBUG
     DEBUG = debug
 
-def set_attn(attn: Literal['xformers', 'flash_attn']):
+def set_attn(attn: Literal['xformers', 'flash_attn', 'naive']):
     global ATTN
     ATTN = attn
     

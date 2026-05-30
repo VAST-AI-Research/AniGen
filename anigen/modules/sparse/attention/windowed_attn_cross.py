@@ -8,6 +8,8 @@ if ATTN == 'xformers':
     import xformers.ops as xops
 elif ATTN == 'flash_attn':
     import flash_attn
+elif ATTN == 'naive':
+    from .fallback_attn import naive_varlen_attention
 else:
     raise ValueError(f"Unknown attention module: {ATTN}")
 
@@ -125,6 +127,10 @@ def sparse_windowed_scaled_dot_product_cross_attention(
         cu_seqlens_q = torch.cat([torch.tensor([0]), torch.cumsum(torch.tensor(q_seq_lens), dim=0)],  dim=0).to(q.device).int()
         cu_seqlens_k = torch.cat([torch.tensor([0]), torch.cumsum(torch.tensor(kv_seq_lens), dim=0)], dim=0).to(kv.device).int()
         out = flash_attn.flash_attn_varlen_kvpacked_func(q_feats[:, 0], kv_feats, cu_seqlens_q, cu_seqlens_k, max(q_seq_lens), max(kv_seq_lens)) # [M, H, C]
+    elif ATTN == 'naive':
+        nq = q_feats[:, 0]                                          # [M, H, C]
+        nk, nv = kv_feats.unbind(dim=1)                            # [M, H, C]
+        out = naive_varlen_attention(nq, nk, nv, q_seq_lens, kv_seq_lens)  # [M, H, C]
 
     out = out[q_bwd_indices]      # [T, H, C]
     return q.replace(out)

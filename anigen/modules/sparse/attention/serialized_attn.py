@@ -9,6 +9,8 @@ if ATTN == 'xformers':
     import xformers.ops as xops
 elif ATTN == 'flash_attn':
     import flash_attn
+elif ATTN == 'naive':
+    from .fallback_attn import naive_varlen_attention
 else:
     raise ValueError(f"Unknown attention module: {ATTN}")
 
@@ -168,6 +170,10 @@ def sparse_serialized_scaled_dot_product_self_attention(
             out = xops.memory_efficient_attention(q, k, v)          # [B, N, H, C]
         elif ATTN == 'flash_attn':
             out = flash_attn.flash_attn_qkvpacked_func(qkv_feats)   # [B, N, H, C]
+        elif ATTN == 'naive':
+            q, k, v = qkv_feats.reshape(B * N, 3, H, C).unbind(dim=1)  # [M, H, C]
+            naive_seqlens = [N] * B
+            out = naive_varlen_attention(q, k, v, naive_seqlens, naive_seqlens)  # [M, H, C]
         else:
             raise ValueError(f"Unknown attention module: {ATTN}")
         out = out.reshape(B * N, H, C)                              # [M, H, C]
@@ -183,6 +189,9 @@ def sparse_serialized_scaled_dot_product_self_attention(
             cu_seqlens = torch.cat([torch.tensor([0]), torch.cumsum(torch.tensor(seq_lens), dim=0)], dim=0) \
                         .to(qkv.device).int()
             out = flash_attn.flash_attn_varlen_qkvpacked_func(qkv_feats, cu_seqlens, max(seq_lens)) # [M, H, C]
+        elif ATTN == 'naive':
+            q, k, v = qkv_feats.unbind(dim=1)                      # [M, H, C]
+            out = naive_varlen_attention(q, k, v, seq_lens, seq_lens)  # [M, H, C]
 
     out = out[bwd_indices]      # [T, H, C]
 
