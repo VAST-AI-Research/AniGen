@@ -26,7 +26,11 @@ import anigen_mps  # noqa: F401  -- sets backend env vars at import time
 _OPTIONAL_NATIVE_DEPS = (
     "spconv", "torchsparse",          # sparse conv (Task 8/9)
     "nvdiffrast", "diff_gaussian_rasterization", "diffoctreerast",
-    "kaolin", "open3d", "pytorch3d", "vox2seq",  # rendering / 3D
+    # NOTE: pytorch3d is intentionally NOT stubbed here. anigen_mps.install_knn_shim()
+    # (run on `import anigen_mps` above) provides a real pytorch3d.ops with CPU
+    # cKDTree knn_points/ball_query drop-ins (Task 9). Stubbing it would clobber
+    # those with no-op stand-ins.
+    "kaolin", "open3d", "vox2seq",  # rendering / 3D
     "rembg",                          # image preprocessing
     "flash_attn", "xformers",         # other attention backends (naive is active)
     "cubvh",                          # training-only CUDA ext
