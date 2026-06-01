@@ -10,6 +10,7 @@ safetensors==0.7.0
 huggingface-hub==1.16.4
 einops==0.8.2
 trimesh==4.10.1
+rtree==1.4.1             # trimesh.proximity.closest_point spatial index (skin-weight transfer)
 xatlas==0.0.11
 pymeshfix
 pyvista
