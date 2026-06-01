@@ -141,11 +141,14 @@ class SubMConv3dFunction(Function):
         
         if spconv.ALGORITHM == Algorithm.EXPLICIT_GEMM:        
             neighbor_map = neighbor_cache['neighbor_map']
-            
-            # im2col
+
+            # im2col. Cast the uint32 neighbor map to int64 BEFORE comparing/indexing:
+            # MPS cannot type-promote uint32 (`uint32 != python_int` raises
+            # "Promotion for uint32 types is not supported"). CUDA promotes silently.
+            nm = neighbor_map.view(-1).long()
             im2col = torch.zeros((N * V, Ci), device=feats.device, dtype=feats.dtype)
-            mask = neighbor_map.view(-1) != 0xffffffff
-            im2col[mask] = feats[neighbor_map.view(-1).long()[mask]]
+            mask = nm != 0xffffffff
+            im2col[mask] = feats[nm[mask]]
             im2col = im2col.view(N, V * Ci)
             
             # addmm
