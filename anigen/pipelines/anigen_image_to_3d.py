@@ -466,11 +466,15 @@ class AnigenImageTo3DPipeline(Pipeline):
             del extrinsics_mv, intrinsics_mv, mesh_result
             _cuda_cleanup()
 
+            # mode='opt' optimizes the texture by backprop through the differentiable
+            # rasterizer; mtldiffrast's backward is not viable on MPS (hard SIGTRAP), so
+            # fall back to the non-differentiable projective bake on non-CUDA devices.
+            _bake_mode = 'opt' if torch.cuda.is_available() else 'fast'
             with torch.enable_grad():
                 texture = bake_texture(
                     uv_vertices, uv_faces, uvs,
                     observations, masks, extrinsics_np, intrinsics_np,
-                    texture_size=texture_size, mode='opt',
+                    texture_size=texture_size, mode=_bake_mode,
                     lambda_tv=0.01,
                     verbose=True,
                 )

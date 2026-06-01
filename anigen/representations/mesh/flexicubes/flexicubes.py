@@ -263,6 +263,12 @@ class FlexiCubes:
                                  , edge_dim)
         denominator = edges_weight.sum(edge_dim)
         ue = (edges_x * edges_weight).sum(edge_dim) / denominator
+        # Equal-SDF endpoints make denominator 0 -> non-finite zero-crossing. CUDA
+        # rarely hits exact equality; MPS fp32 rounding does, yielding NaN/Inf mesh
+        # vertices that crash downstream (trimesh cKDTree). Fall back to the edge
+        # midpoint wherever the interpolated point isn't finite.
+        bad = ~torch.isfinite(ue).all(dim=-1, keepdim=True)
+        ue = torch.where(bad, edges_x.mean(edge_dim), ue)
         return ue
 
     def _solve_vd_QEF(self, p_bxnx3, norm_bxnx3, c_bx3, qef_reg_scale):

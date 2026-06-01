@@ -4,6 +4,10 @@ if _torch.cuda.is_available():
     import nvdiffrast.torch as dr
 else:
     import mtldiffrast.torch as dr   # API-compatible Metal replacement
+# Active device. MeshRenderer defaulted to device='cuda', and get_renderer() builds it
+# with no device arg -> str(device).startswith('cuda') picks the CUDA rast context, which
+# doesn't exist in mtldiffrast on Apple Silicon. Default to MPS/CPU off-CUDA instead.
+_DEV = 'cuda' if _torch.cuda.is_available() else ('mps' if _torch.backends.mps.is_available() else 'cpu')
 from easydict import EasyDict as edict
 from ..representations.mesh import MeshExtractResult
 import torch.nn.functional as F
@@ -45,7 +49,7 @@ class MeshRenderer:
         rendering_options (dict): Rendering options.
         glctx (nvdiffrast.torch.RasterizeGLContext): RasterizeGLContext object for CUDA/OpenGL interop.
         """
-    def __init__(self, rendering_options={}, device='cuda'):
+    def __init__(self, rendering_options={}, device=_DEV):
         self.rendering_options = edict({
             "resolution": None,
             "near": None,

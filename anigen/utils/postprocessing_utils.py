@@ -8,6 +8,10 @@ if _torch.cuda.is_available():
     import nvdiffrast.torch as dr
 else:
     import mtldiffrast.torch as dr   # API-compatible Metal replacement
+# Active compute device. The original code hardcodes device=_DEV in factory calls
+# (torch.tensor(..., device=_DEV)), which raises on a non-CUDA build; route those to
+# MPS/CPU on Apple Silicon. (.cuda()/.to('cuda') are remapped globally by anigen_mps.)
+_DEV = 'cuda' if _torch.cuda.is_available() else ('mps' if _torch.backends.mps.is_available() else 'cpu')
 from tqdm import tqdm
 import trimesh
 import trimesh.visual
@@ -211,7 +215,7 @@ def _fill_holes(
     mesh.load_array(verts.cpu().numpy(), faces.cpu().numpy())
     mesh.fill_small_boundaries(nbe=max_hole_nbe, refine=True)
     verts, faces = mesh.return_arrays()
-    verts, faces = torch.tensor(verts, device='cuda', dtype=torch.float32), torch.tensor(faces, device='cuda', dtype=torch.int32)
+    verts, faces = torch.tensor(verts, device=_DEV, dtype=torch.float32), torch.tensor(faces, device=_DEV, dtype=torch.int32)
 
     return verts, faces
 
@@ -386,7 +390,7 @@ def bake_vertex_colors_to_texture(
     Returns:
         np.ndarray: Baked texture image, shape (texture_size, texture_size, 3), uint8.
     """
-    device = 'cuda'
+    device = _DEV
     verts_t = torch.tensor(simp_vertices, dtype=torch.float32, device=device)
     faces_t = torch.tensor(simp_faces.astype(np.int32), dtype=torch.int32, device=device)
     uvs_t = torch.tensor(simp_uvs, dtype=torch.float32, device=device)
@@ -485,9 +489,9 @@ def render_multiview_mesh_colors(
         [c[0] for c in cams], [c[1] for c in cams], r, fov,
     )
 
-    verts_t = torch.tensor(vertices, dtype=torch.float32, device='cuda')
-    faces_t = torch.tensor(faces.astype(np.int32), dtype=torch.int32, device='cuda')
-    colors_t = torch.tensor(vertex_colors, dtype=torch.float32, device='cuda').clamp(0, 1)
+    verts_t = torch.tensor(vertices, dtype=torch.float32, device=_DEV)
+    faces_t = torch.tensor(faces.astype(np.int32), dtype=torch.int32, device=_DEV)
+    colors_t = torch.tensor(vertex_colors, dtype=torch.float32, device=_DEV).clamp(0, 1)
 
     rastctx = utils3d.torch.RastContext(backend=_rast_backend())
     observations = []
@@ -554,7 +558,7 @@ def bake_texture(
         lambda_tv (float): Weight of total variation loss in optimization.
         verbose (bool): Whether to print progress.
     """
-    device = 'cuda'
+    device = _DEV
     vertices = torch.tensor(vertices, dtype=torch.float32, device=device)
     faces = torch.tensor(faces.astype(np.int32), dtype=torch.int32, device=device)
     uvs = torch.tensor(uvs, dtype=torch.float32, device=device)
