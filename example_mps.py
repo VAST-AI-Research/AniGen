@@ -22,9 +22,35 @@ def _install_fp32_upcast():
     AnigenImageTo3DPipeline.from_pretrained = staticmethod(_patched)
 
 
+def _install_bigcopy_trace(threshold_elems: int = 20_000_000):
+    """Diagnostic (ANIGEN_TRACE_BIGCOPY=1): log .to/.type/.contiguous/.float calls on
+    very large tensors with a short stack, to locate a stalling MPS copy. No-op unless
+    the env var is set; never used on CUDA."""
+    import os
+    if os.environ.get("ANIGEN_TRACE_BIGCOPY", "0") != "1":
+        return
+    import torch, traceback
+    def _wrap(name):
+        orig = getattr(torch.Tensor, name)
+        def w(self, *a, **k):
+            try:
+                if self.numel() >= threshold_elems:
+                    st = "".join(traceback.format_stack(limit=6)[:-1])
+                    print(f"[BIGCOPY] .{name}() on shape={tuple(self.shape)} "
+                          f"numel={self.numel()} dtype={self.dtype} dev={self.device}\n{st}",
+                          flush=True)
+            except Exception:
+                pass
+            return orig(self, *a, **k)
+        setattr(torch.Tensor, name, w)
+    for n in ("to", "type", "contiguous", "float", "half"):
+        _wrap(n)
+
+
 if __name__ == "__main__":
     if "--device" not in sys.argv:
         sys.argv += ["--device", "mps"]
     _install_fp32_upcast()
+    _install_bigcopy_trace()
     import example
     example.main()

@@ -18,6 +18,14 @@ def configure_mps_environment() -> None:
     os.environ.setdefault("SPARSE_BACKEND", "spconv")
     os.environ.setdefault("SPARSE_CONV_BACKEND", "flex_gemm")
     os.environ.setdefault("SPCONV_ALGO", "native")
+    # Naive (full) sparse attention over the SLAT token set is O(N^2). At SLAT
+    # resolution N is tens of thousands of tokens, so a single score tensor
+    # [H, q_chunk, N] is multi-GB and copies/softmaxes pathologically slowly on
+    # MPS (observed: a single _to_copy stalling SLAT step 0 indefinitely). Bound
+    # peak memory by tiling the KEY dimension with an online softmax (math is
+    # identical). 4096 keeps the score tile small while limiting Python-loop
+    # overhead. CUDA never imports anigen_mps, so its attention is unchanged.
+    os.environ.setdefault("ANIGEN_ATTN_KEY_CHUNK", "4096")
 
 
 def resolve_device(requested: str = "mps"):
@@ -196,12 +204,86 @@ def upcast_pipeline_fp32(pipeline) -> None:
         # casts every remaining fp16 param/buffer to fp32 (idempotent) so the entire
         # inference graph is single-dtype — MPS will not tolerate mixed fp16/fp32 matmuls.
         model.float()
-        if hasattr(model, "use_fp16"):
-            model.use_fp16 = False
-        if hasattr(model, "dtype"):
-            model.dtype = torch.float32
+        # Reset use_fp16/dtype on EVERY submodule, not just the top-level model.
+        # Nested submodules (e.g. the decoder's skin SkinModel) keep their own
+        # self.dtype=fp16 and do `h.type(self.dtype)` on activations; with weights
+        # now fp32 that yields an fp16 x fp32 matmul, which MPS aborts on
+        # ("Destination/Accumulator different datatype"). Make those casts no-ops.
+        for sub in model.modules():
+            if getattr(sub, "use_fp16", None) is not None:
+                try:
+                    sub.use_fp16 = False
+                except Exception:
+                    pass
+            if isinstance(getattr(sub, "dtype", None), torch.dtype):
+                try:
+                    sub.dtype = torch.float32
+                except Exception:
+                    pass
+
+
+def install_cuda_redirect(target: str = "mps") -> None:
+    """Permanent CUDA -> active-device compatibility shim (Mac-only).
+
+    AniGen's inference/postprocess code hardcodes CUDA three ways a non-CUDA box can't
+    satisfy: ``tensor.cuda()`` / ``module.cuda()`` methods, ``x.to('cuda')``, and factory
+    calls like ``torch.tensor(..., device='cuda')`` (21+ sites). Editing every call site
+    is brittle, so redirect all three to the active MPS device, and downcast float64
+    (unsupported on MPS) to float32 in transit. Guarded: never patched when real CUDA
+    is present.
+    """
+    import torch
+    if torch.cuda.is_available():
+        return
+    dev = resolve_device(target)
+    _orig_tensor_to = torch.Tensor.to
+    _orig_module_to = torch.nn.Module.to
+
+    def _is_cuda(d):
+        return (isinstance(d, str) and d.split(":")[0] == "cuda") or \
+               (isinstance(d, torch.device) and d.type == "cuda")
+
+    # (1) .cuda() methods
+    def _tensor_cuda(self, *a, **k):
+        t = self.float() if self.dtype == torch.float64 else self
+        return _orig_tensor_to(t, dev)
+
+    def _module_cuda(self, *a, **k):
+        return _orig_module_to(self, dev)
+
+    torch.Tensor.cuda = _tensor_cuda
+    torch.nn.Module.cuda = _module_cuda
+
+    # (2) .to('cuda') on tensors/modules (permanent; superset of the hub-load context mgr)
+    def _tensor_to(self, *a, **k):
+        if a and _is_cuda(a[0]):
+            if self.dtype == torch.float64:
+                self = self.float()
+            a = (dev,) + tuple(a[1:])
+        if _is_cuda(k.get("device")):
+            if self.dtype == torch.float64:
+                self = self.float()
+            k = dict(k); k["device"] = dev
+        return _orig_tensor_to(self, *a, **k)
+
+    def _module_to(self, *a, **k):
+        if a and _is_cuda(a[0]):
+            a = (dev,) + tuple(a[1:])
+        if _is_cuda(k.get("device")):
+            k = dict(k); k["device"] = dev
+        return _orig_module_to(self, *a, **k)
+
+    torch.Tensor.to = _tensor_to
+    torch.nn.Module.to = _module_to
+
+    # NOTE: we deliberately do NOT wrap torch factory functions (torch.tensor/zeros/...)
+    # to remap device='cuda'. Doing so breaks torch.jit.script (geffnet/DSINE scripts
+    # functions that call torch.tensor; TorchScript can't compile a *args/**kwargs
+    # Python wrapper). Hardcoded device='cuda' in factory calls is handled at the call
+    # site (see anigen.utils.postprocessing_utils._active_device).
 
 
 configure_mps_environment()
 install_nvdiffrast_alias()
 install_knn_shim()
+install_cuda_redirect()

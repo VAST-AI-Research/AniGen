@@ -48,7 +48,7 @@ def knn_points(p1, p2, K=1, return_nn=False, norm=2, **kwargs):
             d = d.copy()
             i[oob] = 0
             d[oob] = 0.0
-        dists_all.append(torch.from_numpy(np.ascontiguousarray(d)).to(dev).float() ** 2)
+        dists_all.append(torch.from_numpy(np.ascontiguousarray(d)).float().to(dev) ** 2)
         idx_all.append(torch.from_numpy(np.ascontiguousarray(i)).to(dev).long())
     dists = torch.stack(dists_all, 0)
     idx = torch.stack(idx_all, 0)
@@ -75,7 +75,7 @@ def ball_query(p1, p2, K=500, radius=1.0, return_nn=False, **kwargs):
             d = d.reshape(-1, 1)
             i = i.reshape(-1, 1)
         i_t = torch.from_numpy(np.ascontiguousarray(i)).to(dev).long()
-        d_t = torch.from_numpy(np.ascontiguousarray(d)).to(dev).float()
+        d_t = torch.from_numpy(np.ascontiguousarray(d)).float().to(dev)
         # cKDTree pads out-of-range (no neighbor within radius / K>n) with
         # index == n and dist == inf. pytorch3d convention: -1 padding, dist 0.
         oob = i_t >= n
