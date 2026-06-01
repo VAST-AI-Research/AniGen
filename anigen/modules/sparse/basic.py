@@ -135,7 +135,9 @@ class SparseTensor:
             if USE_FLEX_GEMM:
                 # Plain Python ints (not 0-d torch tensors) so spatial_shape
                 # stays serializable and doesn't keep GPU tensors alive.
-                spatial_shape = (coords[:, 1:].max(0)[0] + 1).tolist()
+                # Reduce on CPU: MPS max/amax over int coords can hang the Metal
+                # command buffer, and the result is needed host-side anyway.
+                spatial_shape = (coords[:, 1:].cpu().amax(0) + 1).tolist()
                 self.data = FlexGemmSparseData(feats, coords, spatial_shape, shape[0])
             elif BACKEND == 'torchsparse':
                 self.data = SparseTensorData(feats, coords, **kwargs)

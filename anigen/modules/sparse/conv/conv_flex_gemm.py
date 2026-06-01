@@ -14,6 +14,7 @@ import torch
 import torch.nn as nn
 import flex_gemm
 from flex_gemm.ops.spconv import (
+    Algorithm,
     sparse_submanifold_conv3d,
     set_algorithm,
     set_hashmap_ratio,
@@ -35,7 +36,9 @@ def _spatial_shape(x: SparseTensor):
     if isinstance(data_shape, (list, tuple)) and len(data_shape) == 3:
         return [int(s) for s in data_shape]
     coords = x.coords
-    return (coords[:, 1:].max(dim=0).values + 1).tolist()
+    # Reduce on CPU: MPS max/amax over int coords can hang the Metal command
+    # buffer, and the result is needed host-side anyway.
+    return (coords[:, 1:].cpu().amax(0) + 1).tolist()
 
 
 class SparseConv3d(nn.Module):
@@ -69,11 +72,21 @@ class SparseConv3d(nn.Module):
         self.weight = nn.Parameter(weight.permute(0, 2, 3, 4, 1).contiguous())
 
     def forward(self, x: SparseTensor) -> SparseTensor:
-        set_algorithm(flex_gemm.ops.spconv.ALGORITHM)
+        # EXPLICIT_GEMM does the contraction with torch.mm/addmm (only the
+        # neighbor-map build stays on Metal). The default MASKED_IMPLICIT_GEMM_SPLITK
+        # Metal kernel wedges the GPU (and can panic macOS) for large K = Ci*kernel_vol,
+        # e.g. Ci=2048 -> K=55296. Force the torch path until that kernel is fixed.
+        set_algorithm(Algorithm.EXPLICIT_GEMM)
         set_hashmap_ratio(flex_gemm.ops.spconv.HASHMAP_RATIO)
 
         Kd, Kh, Kw = self.kernel_size
-        cache_key = f"flexgemm_subm_{Kw}x{Kh}x{Kd}_d{self.dilation}"
+        # Key by coords identity (storage ptr + N), NOT just kernel size. SparseUpsample/
+        # Downsample copy the parent's _spatial_cache wholesale, so a key that ignores
+        # resolution leaks a coarse-resolution neighbor map onto a finer-resolution conv
+        # (e.g. N=1949 map reused at N=8088 -> OOB indices -> GPU wedge / IndexError).
+        # Within a resolution every conv shares the same coords tensor (replace() reuses
+        # it), so reuse still hits; across up/down the new coords give a fresh key.
+        cache_key = f"flexgemm_subm_{Kw}x{Kh}x{Kd}_d{self.dilation}_p{x.coords.data_ptr()}_n{x.coords.shape[0]}"
         neighbor_cache = x.get_spatial_cache(cache_key)
 
         # shape is NCWHD: batch, in_channels, then the spatial extent.
