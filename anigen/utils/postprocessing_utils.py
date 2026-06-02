@@ -220,6 +220,48 @@ def _fill_holes(
     return verts, faces
 
 
+def remove_sliver_faces(vertices: np.array, faces: np.array, edge_mult: float = 10.0):
+    """Drop degenerate sliver triangles whose longest edge is a gross outlier.
+
+    FlexiCubes' learned-deformation interpolation (``flexicubes._linear_interp``)
+    can extrapolate a dual vertex far outside its cell when the alpha-scaled SDF
+    endpoints are near-equal (denominator -> 0 but finite, so the non-finite
+    midpoint fallback doesn't catch it). The result is a handful of long, thin
+    triangles that bridge across the mesh and render as a spike. They are
+    non-physical: in the otherwise uniform grid mesh their longest edge is
+    ~100x the median. Removing them leaves small holes that the downstream
+    ``_fill_holes`` / meshfix step closes. Device-agnostic (also benign on CUDA).
+    """
+    if faces.shape[0] == 0:
+        return faces, 0
+    tri = vertices[faces]
+    emax = np.maximum.reduce([
+        np.linalg.norm(tri[:, 1] - tri[:, 0], axis=1),
+        np.linalg.norm(tri[:, 2] - tri[:, 1], axis=1),
+        np.linalg.norm(tri[:, 0] - tri[:, 2], axis=1),
+    ])
+    med = float(np.median(emax))
+    keep = emax <= edge_mult * med
+    return faces[keep], int((~keep).sum())
+
+
+def remove_small_components(vertices: np.array, faces: np.array, min_face_ratio: float = 0.01):
+    """Keep only connected components with at least ``min_face_ratio`` of the largest
+    component's face count. Removes the tiny single-triangle specks FlexiCubes leaves
+    scattered around the body (and any residue from decimation), without assuming a
+    single-component result."""
+    if faces.shape[0] == 0:
+        return vertices, faces
+    mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
+    comps = mesh.split(only_watertight=False)
+    if len(comps) <= 1:
+        return vertices, faces
+    max_faces = max(c.faces.shape[0] for c in comps)
+    keep = [c for c in comps if c.faces.shape[0] >= max(1, int(min_face_ratio * max_faces))]
+    merged = trimesh.util.concatenate(keep)
+    return np.asarray(merged.vertices), np.asarray(merged.faces)
+
+
 def postprocess_mesh(
     vertices: np.array,
     faces: np.array,
@@ -252,6 +294,12 @@ def postprocess_mesh(
     if verbose:
         tqdm.write(f'Before postprocess: {vertices.shape[0]} vertices, {faces.shape[0]} faces')
 
+    # Remove FlexiCubes sliver/spike faces before anything else, so decimation and
+    # hole-filling operate on a clean surface.
+    faces, n_slivers = remove_sliver_faces(vertices, faces)
+    if verbose and n_slivers:
+        tqdm.write(f'Removed {n_slivers} sliver faces (spike)')
+
     # Simplify
     if simplify and simplify_ratio > 0:
         mesh = pv.PolyData(vertices, np.concatenate([np.full((faces.shape[0], 1), 3), faces], axis=1))
@@ -275,6 +323,11 @@ def postprocess_mesh(
         vertices, faces = vertices.cpu().numpy(), faces.cpu().numpy()
         if verbose:
             tqdm.write(f'After remove invisible faces: {vertices.shape[0]} vertices, {faces.shape[0]} faces')
+
+    # Drop leftover dust (tiny disconnected specks) and keep the meaningful body.
+    vertices, faces = remove_small_components(vertices, faces)
+    if verbose:
+        tqdm.write(f'After small-component filter: {vertices.shape[0]} vertices, {faces.shape[0]} faces')
 
     return vertices, faces
 
