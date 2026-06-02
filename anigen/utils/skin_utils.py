@@ -87,8 +87,87 @@ def _format_cycle(cycle, joints=None):
     except Exception:
         return s
 
+def _connect_skeleton_components(joints, parents, verbose: bool = True):
+    """[AniGen-MPS value-add — not in vanilla AniGen]
+
+    Connect a disconnected skeleton into a single tree.
+
+    AniGen's generated skeletons are frequently emitted as several *disconnected*
+    components (multiple parent == -1 roots). ``repair_skeleton_parents`` only
+    guarantees an acyclic *forest*, so it preserves that disconnection. Vanilla
+    AniGen ships the asset that way (the same happens on the reference CUDA path).
+
+    A disconnected skeleton is benign for a static mesh but breaks animation: a
+    stray root bone has no parent to inherit motion from, so it stays frozen while
+    the rest of the body moves — the skin weighted to it tears apart (observed as
+    unnatural stretching near the head/jaw). Reconnecting every stray root to the
+    nearest joint of the main (largest) component fixes this with no change to skin
+    weights, and a single-rooted skeleton is what animation tools expect anyway.
+
+    Attaching a *root* (no existing parent) to a joint in a different component can
+    never introduce a cycle, so this is always safe.
+    """
+    parents = np.asarray(parents).astype(np.int64, copy=True).reshape(-1)
+    n = parents.shape[0]
+    if n == 0:
+        return parents
+
+    joints_np = None
+    if joints is not None:
+        jn = np.asarray(joints, dtype=np.float32)
+        if jn.ndim == 2 and jn.shape[0] == n and jn.shape[1] >= 3:
+            joints_np = jn[:, :3]
+
+    # Union-find over existing parent edges -> connected components.
+    uf = list(range(n))
+
+    def find(x):
+        while uf[x] != x:
+            uf[x] = uf[uf[x]]
+            x = uf[x]
+        return x
+
+    for i in range(n):
+        p = int(parents[i])
+        if 0 <= p < n and p != i:
+            ri, rp = find(i), find(p)
+            if ri != rp:
+                uf[ri] = rp
+
+    comps: dict[int, list[int]] = {}
+    for i in range(n):
+        comps.setdefault(find(i), []).append(i)
+    if len(comps) <= 1:
+        return parents
+
+    primary_key = max(comps, key=lambda k: len(comps[k]))
+    prim_idx = np.array(sorted(comps[primary_key]), dtype=np.int64)
+    roots = [i for i in range(n) if parents[i] == -1 or parents[i] == i]
+
+    # Always surface this — it's an infrequent, meaningful modification of the asset
+    # (a deliberate improvement over vanilla AniGen), not routine chatter.
+    print(f"[AniGen-MPS value-add] skeleton has {len(comps)} disconnected components; "
+          f"reconnecting {len(comps) - 1} stray root(s) to the main body so the rig "
+          f"animates without tearing (vanilla AniGen / CUDA leave these disconnected).")
+
+    for r in roots:
+        if find(r) == primary_key:
+            continue
+        if joints_np is not None:
+            d2 = ((joints_np[prim_idx] - joints_np[r]) ** 2).sum(axis=-1)
+            tgt = int(prim_idx[int(np.argmin(d2))])
+        else:
+            tgt = int(prim_idx[0])
+        if verbose:
+            print(f"  reconnect stray root joint[{r}] -> joint[{tgt}] (nearest main-body joint)")
+        parents[r] = tgt
+
+    return parents
+
+
 def repair_skeleton_parents(joints, parents, verbose: bool = True, max_iters: int | None = None):
-    """Repair cyclic/invalid parent pointers into an acyclic forest.
+    """Repair cyclic/invalid parent pointers into an acyclic forest, then connect
+    any disconnected components into a single tree (see ``_connect_skeleton_components``).
 
     Strategy (sensible + minimal change):
     - First sanitize invalid parent indices to -1.
@@ -125,7 +204,7 @@ def repair_skeleton_parents(joints, parents, verbose: bool = True, max_iters: in
     for it in range(int(max_iters)):
         cycles = _find_parent_cycles(parents)
         if not cycles:
-            return parents
+            break
 
         if verbose:
             print(f"Warning: detected {len(cycles)} skeleton cycle(s); repairing (iter {it+1}/{max_iters}).")
@@ -161,12 +240,16 @@ def repair_skeleton_parents(joints, parents, verbose: bool = True, max_iters: in
                 print(f"  Fix: set parent[{cut_node}] = {new_parent} (nearest outside)")
             parents[cut_node] = new_parent
 
-    # If we get here, we failed to fully repair cycles within the limit.
+    # If we get here without breaking, we failed to fully repair cycles within the limit.
     remaining = _find_parent_cycles(parents)
     if remaining and verbose:
         print(f"Error: remaining cycles after repair attempts: {len(remaining)}")
         for cycle in remaining[:10]:
             print("  Remaining cycle:", _format_cycle(cycle, joints=joints_np))
+
+    # Value-add over vanilla AniGen: fuse disconnected skeleton components into one tree
+    # so the exported rig animates without frozen stray bones (see _connect_skeleton_components).
+    parents = _connect_skeleton_components(joints, parents, verbose=verbose)
     return parents
 
 def _softmax(x: np.ndarray, axis: int = -1) -> np.ndarray:
