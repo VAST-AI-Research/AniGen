@@ -662,6 +662,12 @@ def bake_texture(
 
     elif mode == 'opt':
         rastctx = utils3d.torch.RastContext(backend=_rast_backend())
+        # Trilinear (mip) texture sampling needs uv derivatives (uv_dr). The mip
+        # *gradient* kernel (_C.texture_grad with a mip stack) hard-aborts on Metal
+        # (S1 Bug J). At texture_size == observation resolution the UV footprint is
+        # ~1 texel/pixel, so plain bilinear sampling optimizes the texture identically;
+        # only fall back to mip on CUDA where nvdiffrast's mip backward is available.
+        _use_mip = torch.cuda.is_available()
         observations_cpu = [obs.flip(0).contiguous() for obs in observations_cpu]
         masks_cpu = [m.flip(0).contiguous() for m in masks_cpu]
         _uv = []
@@ -686,7 +692,7 @@ def bake_texture(
                     projection=projection,
                 )
                 _uv.append(rast['uv'].detach().cpu())
-                _uv_dr.append(rast['uv_dr'].detach().cpu())
+                _uv_dr.append(rast['uv_dr'].detach().cpu() if _use_mip else None)
             del view, projection, rast
         _cuda_cleanup()
 
@@ -717,13 +723,17 @@ def bake_texture(
             for step in range(total_steps):
                 optimizer.zero_grad()
                 selected = np.random.randint(0, len(views_cpu))
-                uv, uv_dr, observation, mask = (
+                uv, observation, mask = (
                     _uv[selected].to(device),
-                    _uv_dr[selected].to(device),
                     observations_cpu[selected].to(device),
                     masks_cpu[selected].to(device),
                 )
-                render = dr.texture(texture, uv, uv_dr)[0]
+                if _use_mip:
+                    uv_dr = _uv_dr[selected].to(device)
+                    render = dr.texture(texture, uv, uv_dr)[0]
+                else:
+                    uv_dr = None
+                    render = dr.texture(texture, uv)[0]
                 loss = torch.nn.functional.l1_loss(render[mask], observation[mask])
                 if lambda_tv > 0:
                     loss += lambda_tv * tv_loss(texture)

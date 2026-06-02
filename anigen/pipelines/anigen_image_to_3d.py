@@ -468,9 +468,13 @@ class AnigenImageTo3DPipeline(Pipeline):
             _cuda_cleanup()
 
             # mode='opt' optimizes the texture by backprop through the differentiable
-            # rasterizer; mtldiffrast's backward is not viable on MPS (hard SIGTRAP), so
-            # fall back to the non-differentiable projective bake on non-CUDA devices.
-            _bake_mode = 'opt' if torch.cuda.is_available() else 'fast'
+            # rasterizer; 'fast' is the non-differentiable projective bake. opt is the
+            # default on CUDA. On MPS it is opt-in via ANIGEN_BAKE_MODE while the
+            # mtldiffrast backward path is validated (historically SIGTRAP'd; see S1 Bug J).
+            _bake_mode = bake_mode or os.environ.get(
+                "ANIGEN_BAKE_MODE",
+                'opt' if torch.cuda.is_available() else 'fast',
+            )
             with torch.enable_grad():
                 texture = bake_texture(
                     uv_vertices, uv_faces, uvs,
