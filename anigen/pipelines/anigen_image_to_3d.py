@@ -345,6 +345,7 @@ class AnigenImageTo3DPipeline(Pipeline):
         smooth_skin_weights_iters: int = 100,
         smooth_skin_weights_alpha: float = 1.0,
         texture_size: int = 1024,
+        bake_mode: str = None,
         output_glb: str = None,
         ss_progress_callback=None,
         slat_progress_callback=None,

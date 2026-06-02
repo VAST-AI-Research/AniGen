@@ -35,6 +35,17 @@ def main():
         help='Optional subfolder name to save outputs under `--output_dir`. If not provided, the image filename stem is used.',
     )
 
+    parser.add_argument('--simplify_ratio', type=float, default=0.95,
+                        help='Fraction of faces to remove in mesh simplification (0-1). '
+                             'Lower keeps more detail (e.g. 0.9 or 0.8) at the cost of a larger mesh. Default 0.95.')
+    parser.add_argument('--texture_size', type=int, default=1024,
+                        help='Baked texture resolution in pixels. Higher is sharper but slower/larger. '
+                             'Set 0 to skip texturing. Default 1024.')
+    parser.add_argument('--bake_mode', type=str, default=None, choices=['fast', 'opt'],
+                        help="Texture baking: 'fast' = projective single-pass; 'opt' = differentiable "
+                             "multi-view optimization (sharper, slower). Default: opt on CUDA, fast on MPS. "
+                             "opt now works on Apple Silicon (no mip backward).")
+
     parser.add_argument('--no_smooth_skin_weights', action='store_true', help='Disable skin-weight smoothing')
     parser.add_argument('--smooth_skin_weights_iters', type=int, default=100, help='Number of smoothing iterations (default: 100)')
     parser.add_argument('--smooth_skin_weights_alpha', type=float, default=1.0, help='Smoothing alpha (default: 1.0)')
@@ -100,6 +111,9 @@ def main():
             cfg_scale_ss=args.cfg_scale_ss,
             cfg_scale_slat=args.cfg_scale,
             joints_density=args.joints_density,
+            simplify_ratio=args.simplify_ratio,
+            texture_size=args.texture_size,
+            bake_mode=args.bake_mode,
             no_smooth_skin_weights=args.no_smooth_skin_weights,
             no_filter_skin_weights=args.no_filter_skin_weights,
             smooth_skin_weights_iters=args.smooth_skin_weights_iters,
