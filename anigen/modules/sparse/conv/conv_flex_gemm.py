@@ -71,6 +71,35 @@ class SparseConv3d(nn.Module):
             self.register_parameter("bias", None)
         self.weight = nn.Parameter(weight.permute(0, 2, 3, 4, 1).contiguous())
 
+    def _load_from_state_dict(self, state_dict, prefix, local_metadata, strict,
+                              missing_keys, unexpected_keys, error_msgs):
+        # The trained checkpoints were produced with conv_spconv.SparseConv3d, which
+        # nests the kernel in a ``.conv`` submodule (keys ``<prefix>conv.weight`` /
+        # ``<prefix>conv.bias``). This flex_gemm drop-in stores the kernel directly as
+        # ``self.weight`` / ``self.bias``, so without remapping the trained weights are
+        # silently dropped (load_state_dict is called with strict=False) and every conv
+        # runs at initialization -> near-zero / zero output -> shattered mesh ("confetti").
+        # The spconv SubMConv3d weight layout is (Co, Kd, Kh, Kw, Ci), identical to our
+        # permuted ``self.weight``, so for k>1 a pure key remap (no transpose) is correct.
+        #
+        # EXCEPTION: 1x1x1 convs. spconv special-cases 1x1x1 SubMConv3d as a plain GEMM and
+        # stores that kernel's matmul weight in (Ci, Co) order, NOT (Co, Ci). flex_gemm always
+        # treats the weight as (Co, ..., Ci) and computes ``feats @ W.view(Co,Ci).T``. Verified
+        # against a CUDA reference (lstsq: CUDA's 1x1 output == feats @ W.reshape(Ci,Co)), so we
+        # transpose Co/Ci for 1x1x1 weights on load. Without this the skip_connection convs run a
+        # scrambled weight -> wrong residual -> ~1000 dust fragments around the main body.
+        is_1x1 = tuple(self.kernel_size) == (1, 1, 1)
+        for src, dst in ((prefix + 'conv.weight', prefix + 'weight'),
+                         (prefix + 'conv.bias', prefix + 'bias')):
+            if src in state_dict and dst not in state_dict:
+                t = state_dict.pop(src)
+                if dst.endswith('weight') and is_1x1 and t.ndim == 5:
+                    Co, _, _, _, Ci = t.shape
+                    t = t.reshape(Ci, Co).t().contiguous().reshape(Co, 1, 1, 1, Ci)
+                state_dict[dst] = t
+        super()._load_from_state_dict(state_dict, prefix, local_metadata, strict,
+                                      missing_keys, unexpected_keys, error_msgs)
+
     def forward(self, x: SparseTensor) -> SparseTensor:
         # EXPLICIT_GEMM does the contraction with torch.mm/addmm (only the
         # neighbor-map build stays on Metal). The default MASKED_IMPLICIT_GEMM_SPLITK
