@@ -28,6 +28,20 @@ AniGen takes a **single image** as input and automatically produces a fully rigg
 </tr>
 </table>
 
+### **Application**: Monocular 4D Reconstruction with Generative Priors
+
+Fit a generated rig to a monocular video and animate it — the skeleton motion is optimized by **differentiable rendering**, enhanced with optical flow and point tracking (CoTracker3).
+
+<p align="center"><img src="assets/4drecon/camel_fit.gif" width="85%"></p>
+<p align="center"><img src="assets/4drecon/bear_fit.gif" width="85%"></p>
+<p align="center"><em>Left: mesh overlay &nbsp;·&nbsp; Right: skeleton overlay</em></p>
+
+```sh
+CUDA_VISIBLE_DEVICES=0 bash anigen/4drecon/run_all.sh camel
+```
+
+This is an optional add-on under [`anigen/4drecon/`](anigen/4drecon/README.md); its dependencies and third-party trackers are installed separately (see that README).
+
 <!-- Installation -->
 ## 📦 Installation
 
@@ -136,19 +150,6 @@ python app.py
 Then, you can access the demo at the address shown in the terminal.
 
 ***The web demo is also available on [Hugging Face Spaces](https://huggingface.co/spaces/VAST-AI/AniGen)!***
-
-### Application: Monocular 4D Reconstruction with Skeletal&Shape Priors
-
-Fit a generated rig to a monocular video and animate it — the skeleton motion is optimized by **differentiable rendering**, enhanced with optical flow and point tracking (CoTracker3).
-
-<p align="center"><img src="assets/4drecon/camel_fit.gif" width="85%"></p>
-<p align="center"><em>Left: mesh overlay &nbsp;·&nbsp; Right: skeleton overlay &nbsp;(fit rendered over the darkened input frame)</em></p>
-
-```sh
-CUDA_VISIBLE_DEVICES=0 bash anigen/4drecon/run_all.sh camel
-```
-
-This is an optional add-on under [`anigen/4drecon/`](anigen/4drecon/README.md); its dependencies and third-party trackers are installed separately (see that README).
 
 
 <!-- Training -->

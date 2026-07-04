@@ -1,4 +1,4 @@
-# anigen/4drecon — video-driven 4D reconstruction (optional)
+# anigen/4drecon — Monocular 4D reconstruction
 
 Fit an AniGen-generated rig to a monocular video and render it back. A rigged mesh is produced
 from the first frame, its pose is initialised with VGGT-Omega and refined with nvdiffrast, then
@@ -6,10 +6,11 @@ per-frame skeleton motion is optimised by **differentiable rendering** (silhouet
 flow + CoTracker3 point tracks), and the result is rendered from the original and cyclic views.
 
 ![camel](../../assets/4drecon/camel_fit.gif)
+![bear](../../assets/4drecon/bear_fit.gif)
 
-*Left: mesh overlay · Right: skeleton overlay (fit rendered over the darkened input frame).*
+*Left: mesh overlay · Right: skeleton overlay (fit rendered over the darkened input frame) — DAVIS bear & camel.*
 
-This is an **optional, standalone** add-on. It is not imported by the core package and its
+This is an **standalone** add-on. It is not imported by the core package and its
 dependencies are not in the repo requirements — install them only if you use it.
 
 ## Install
