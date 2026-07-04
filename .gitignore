@@ -413,3 +413,15 @@ output/
 output*/
 temp_*
 .vscode
+
+# --- env / private ---
+.venv/
+setup_env_venv.sh
+
+# --- anigen/4drecon: data, outputs, third-party checkouts (not committed) ---
+data/
+anigen/4drecon/third_party/
+results/
+
+# third-party DSINE checkout (cloned separately, has its own .git)
+extensions/DSINE-hub/

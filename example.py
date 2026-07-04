@@ -18,7 +18,7 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--image_path', type=str, required=True, help='Path to input image or a folder of images')
-    parser.add_argument('--ss_flow_path', type=str, required=False, default='ckpts/anigen/ss_flow_duet', help='Path to SS Flow model directory')
+    parser.add_argument('--ss_flow_path', type=str, required=False, default='ckpts/anigen/ss_flow_solo', help='Path to SS Flow model directory')
     parser.add_argument('--slat_flow_path', type=str, required=False, default='ckpts/anigen/slat_flow_auto', help='Path to SLat Flow model directory (e.g. slat_flow_auto, slat_flow_control)')
     parser.add_argument('--output_dir', type=str, default='results/', help='Output directory')
     parser.add_argument('--seed', type=int, default=42)

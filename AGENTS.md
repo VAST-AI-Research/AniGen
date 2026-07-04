@@ -110,13 +110,13 @@ Required weight directories:
 - `ckpts/vgg/` — VGG feature backbone
 - `ckpts/anigen/ss_dae/` — Sparse Structure encoder/decoder
 - `ckpts/anigen/slat_dae/` — Structured Latent encoder/decoder
-- `ckpts/anigen/ss_flow_duet/` — SS Flow model (recommended)
-- `ckpts/anigen/slat_flow_auto/` — SLAT Flow model (recommended)
+- `ckpts/anigen/ss_flow_solo/` — SS Flow model (default)
+- `ckpts/anigen/slat_flow_auto/` — SLAT Flow model (default)
 
-**Recommended model combination**: `ss_flow_duet` + `slat_flow_auto` (default in `example.py`).
+**Default model combination**: `ss_flow_solo` + `slat_flow_auto` (defaults in `example.py`; accurate geometry, frozen geo weights).
 
 Other variants:
-- `ss_flow_solo` — better geometry generalization (frozen geo weights)
+- `ss_flow_duet` — more detailed skeleton (full-FT geo)
 - `ss_flow_epic` — balanced geometry & skeleton (LoRA-FT geo)
 - `slat_flow_control` — controllable joint density (levels 0–4)
 

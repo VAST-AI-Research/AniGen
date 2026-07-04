@@ -33,11 +33,11 @@ AniGen takes a **single image** as input and automatically produces a fully rigg
 
 ### Prerequisites
 - **System**: The code is currently tested only on **Linux**.
-- **Hardware**: An NVIDIA GPU with at least 18GB of memory is necessary. The code has been verified on NVIDIA A800 and RTX3090 GPUs.  
-- **Software**:   
-  - The [CUDA Toolkit](https://developer.nvidia.com/cuda-toolkit-archive) is needed to compile certain submodules. The code has been tested with CUDA versions 11.8 and 12.2.  
-  - [Conda](https://docs.anaconda.com/miniconda/install/#quick-command-line-install) is recommended for managing dependencies.  
-  - Python version 3.8 or higher is required. 
+- **Hardware**: An NVIDIA GPU with at least 18GB of memory is necessary. The code has been verified on NVIDIA A800 and RTX3090 GPUs.
+- **Software**:
+  - The [CUDA Toolkit](https://developer.nvidia.com/cuda-toolkit-archive) is needed to compile certain submodules. The code has been tested with CUDA versions 11.8 and 12.2.
+  - [Conda](https://docs.anaconda.com/miniconda/install/#quick-command-line-install) is recommended for managing dependencies.
+  - Python version 3.8 or higher is required.
 
 ### Installation Steps
 1. Clone the repo:
@@ -67,7 +67,7 @@ AniGen takes a **single image** as input and automatically produces a fully rigg
 
     > [!NOTE]
     > The setup script auto-detects your CUDA version and installs matching wheels for PyTorch, spconv, pytorch3d, and nvdiffrast. [DSINE](https://github.com/baegwangbin/DSINE) (used for surface normal estimation) is loaded at runtime via `torch.hub` and does not require separate installation.
-    
+
 
 <!-- Pretrained Models -->
 ## 🤖 Pretrained Models
@@ -75,9 +75,9 @@ AniGen takes a **single image** as input and automatically produces a fully rigg
 We provide the following pretrained models on [Hugging Face](https://huggingface.co/VAST-AI/AniGen/tree/main). Please make sure to download all necessary weights from this page, including the required dinov2, dsine, and vgg checkpoints.
 
 > [!TIP]
-> **Recommended:** Use **SS-Flow-Duet** + **SLAT-Flow-Auto** if you do not have specific requirements.
-> - For more detailed skeleton (including character fingers) → **SS-Flow-Duet**
+> **Default:** **SS-Flow-Solo** + **SLAT-Flow-Auto** (the defaults in `example.py`) give accurate geometry and work well for most inputs.
 > - For better geometry generalization → **SS-Flow-Solo**
+> - For more detailed skeleton (including character fingers) → **SS-Flow-Duet**
 > - **SLAT-Flow-Control** supports density levels 0–4, but if the density condition significantly deviates from the proper value for the object, skinning weights may be damaged.
 
 | DAE Model | Description | Download |
@@ -136,6 +136,19 @@ python app.py
 Then, you can access the demo at the address shown in the terminal.
 
 ***The web demo is also available on [Hugging Face Spaces](https://huggingface.co/spaces/VAST-AI/AniGen)!***
+
+### Application: Monocular 4D Reconstruction with Skeletal&Shape Priors
+
+Fit a generated rig to a monocular video and animate it — the skeleton motion is optimized by **differentiable rendering**, enhanced with optical flow and point tracking (CoTracker3).
+
+<p align="center"><img src="assets/4drecon/camel_fit.gif" width="85%"></p>
+<p align="center"><em>Left: mesh overlay &nbsp;·&nbsp; Right: skeleton overlay &nbsp;(fit rendered over the darkened input frame)</em></p>
+
+```sh
+CUDA_VISIBLE_DEVICES=0 bash anigen/4drecon/run_all.sh camel
+```
+
+This is an optional add-on under [`anigen/4drecon/`](anigen/4drecon/README.md); its dependencies and third-party trackers are installed separately (see that README).
 
 
 <!-- Training -->

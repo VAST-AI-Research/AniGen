@@ -39,13 +39,17 @@ def load_dsine(device='cuda'):
     if os.path.exists(ckpt_path):
         hub_kwargs['local_file_path'] = ckpt_path
 
-    # Prefer cached hub repo to avoid network access
+    # Prefer local checkouts to avoid network access.
     hub_dir = torch.hub.get_dir()
-    cached_repo = os.path.join(hub_dir, 'hugoycj_DSINE-hub_main')
+    candidate_repos = [
+        os.path.join(os.getcwd(), 'extensions', 'DSINE-hub'),  # in-repo local checkout
+        os.path.join(hub_dir, 'hugoycj_DSINE-hub_main'),        # torch.hub cache
+    ]
+    local_repo = next((p for p in candidate_repos if os.path.isdir(p)), None)
 
-    if os.path.isdir(cached_repo):
-        print(f"Loading DSINE from cached hub repo: {cached_repo}")
-        predictor = torch.hub.load(cached_repo, "DSINE", source='local',
+    if local_repo is not None:
+        print(f"Loading DSINE from local repo: {local_repo}")
+        predictor = torch.hub.load(local_repo, "DSINE", source='local',
                                    trust_repo=True, **hub_kwargs)
     else:
         print("Loading DSINE via torch.hub (requires network)...")
