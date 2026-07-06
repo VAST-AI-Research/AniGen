@@ -34,7 +34,7 @@ Fit a generated rig to a monocular video and animate it — the skeleton motion 
 
 <p align="center"><img src="assets/4drecon/camel_fit.gif" width="85%"></p>
 <p align="center"><img src="assets/4drecon/bear_fit.gif" width="85%"></p>
-<p align="center"><em>Left: mesh overlay &nbsp;·&nbsp; Right: skeleton overlay</em></p>
+<p align="center"><em>Left → right: input video &nbsp;·&nbsp; mesh overlay &nbsp;·&nbsp; skeleton overlay</em></p>
 
 ```sh
 CUDA_VISIBLE_DEVICES=0 bash anigen/4drecon/run_all.sh camel

@@ -58,6 +58,18 @@ def draw_skeleton(img, j2d, parents, colors, depth=None, radius=4, lw=3):
     return img
 
 
+def draw_mesh_contour(img, mask, color, thickness=2):
+    """Outline the mesh silhouette (mask>0.5) on img (uint8 RGB) with a colored contour."""
+    img = np.ascontiguousarray(img)
+    m = (mask > 0.5).astype(np.uint8)
+    cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    cv2.drawContours(img, cnts, -1, color, thickness, cv2.LINE_AA)
+    return img
+
+
+CONTOUR_COLORS = {"blue": (90, 200, 255), "pink": (255, 120, 200)}  # RGB
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--seq", default="bear")
@@ -68,7 +80,8 @@ def main():
     ap.add_argument("--cyc_amp", type=float, default=140.0)
     ap.add_argument("--cyc_el", type=float, default=20.0)
     ap.add_argument("--cyc_res", type=int, default=720)
-    ap.add_argument("--bg_dark", type=float, default=0.35, help="background dim factor for fit_hero (mesh+skeleton stay bright)")
+    ap.add_argument("--bg_dark", type=float, default=0.35, help="background dim factor (mesh+skeleton stay bright)")
+    ap.add_argument("--contour", default="blue", choices=list(CONTOUR_COLORS), help="mesh-boundary contour color")
     args = ap.parse_args()
     dev = "cuda"
     Rd = f"results/{args.seq}"
@@ -107,13 +120,15 @@ def main():
         Rg = rot6d_to_matrix(r6[t])
         return apply_similarity(v_can, s, Rg, t_vec), apply_similarity(gp, s, Rg, t_vec)
 
-    # ---------- original view: skeleton on DAVIS+mesh, and a [mesh | skeleton] side-by-side ----------
+    # ---------- original view: skeleton on DAVIS+mesh, and an [original | mesh | skeleton] triptych ----------
+    ccol = CONTOUR_COLORS[args.contour]
     orig, sbs = [], []
     with torch.no_grad():
         for t in range(T):
             vw, jw = posed(t, root=True)
             j2d, jz = project(jw, E, K, W, H)
             img, alpha = r.render_color(vw, faces, colors_v, E, K, H, W, ssaa=2, bg=1.0)
+            amask = alpha.cpu().numpy()
             davis = torch.tensor(frames_np[t], device=dev)
             a = alpha[..., None]
             mesh_comp = to_uint8(davis * (1 - a) + img * a)
@@ -121,22 +136,22 @@ def main():
             panelA = draw_skeleton(panelA, j2d, parents, jcolors, jz, radius=4, lw=3)
             mesh_comp = draw_skeleton(mesh_comp, j2d, parents, jcolors, jz, radius=4, lw=3)
             orig.append(np.concatenate([panelA, mesh_comp], axis=1))
-            # side-by-side, both over a DARKENED background (mesh/skeleton not darkened):
-            #   left  = mesh overlay,  right = skeleton overlay
+            # triptych: [ original video | mesh overlay (darkened bg + boundary contour) | skeleton overlay ]
+            original = (frames_np[t] * 255).astype(np.uint8)
             dark = davis * args.bg_dark
-            mesh_only = to_uint8(dark * (1 - a) + img * a)
+            mesh_only = draw_mesh_contour(to_uint8(dark * (1 - a) + img * a), amask, ccol, thickness=2)
             skel_only = draw_skeleton(to_uint8(dark), j2d, parents, jcolors, jz, radius=4, lw=3)
-            sbs.append(np.concatenate([mesh_only, skel_only], axis=1))
+            sbs.append(np.concatenate([original, mesh_only, skel_only], axis=1))
     imageio.mimsave(os.path.join(args.outdir, "skeleton_original.mp4"), orig, fps=args.fps, quality=8, macro_block_size=1)
     imageio.mimsave(os.path.join(args.outdir, "skeleton_original.gif"),
                     [np.asarray(Image.fromarray(f).resize((f.shape[1] // 3, f.shape[0] // 3))) for f in orig],
                     fps=args.fps, loop=0)
     imageio.mimsave(os.path.join(args.outdir, "fit_sidebyside.mp4"), sbs, fps=args.fps, quality=8, macro_block_size=1)
     imageio.mimsave(os.path.join(args.outdir, "fit_sidebyside.gif"),
-                    [np.asarray(Image.fromarray(f).resize((f.shape[1] // 4, f.shape[0] // 4))) for f in sbs],
+                    [np.asarray(Image.fromarray(f).resize((f.shape[1] // 6, f.shape[0] // 6))) for f in sbs],
                     fps=args.fps, loop=0)
-    print("  wrote skeleton_original.mp4/.gif + fit_sidebyside.mp4/.gif "
-          "(darkened bg: [mesh overlay | skeleton overlay])")
+    print(f"  wrote skeleton_original.mp4/.gif + fit_sidebyside.mp4/.gif "
+          f"([original | mesh+{args.contour} contour | skeleton], darkened bg)")
 
     # ---------- cyclic orbit: skeleton + dimmed mesh, novel views ----------
     Kc = fov_to_intrinsics_normalized(np.deg2rad(40), np.deg2rad(40), device=dev)

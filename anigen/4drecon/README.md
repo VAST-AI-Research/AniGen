@@ -8,7 +8,7 @@ flow + CoTracker3 point tracks), and the result is rendered from the original an
 ![camel](../../assets/4drecon/camel_fit.gif)
 ![bear](../../assets/4drecon/bear_fit.gif)
 
-*Left: mesh overlay · Right: skeleton overlay (fit rendered over the darkened input frame) — DAVIS bear & camel.*
+*Left → right: input video · mesh overlay · skeleton overlay (fit over the darkened input frame). DAVIS bear & camel.*
 
 This is an **standalone** add-on. It is not imported by the core package and its
 dependencies are not in the repo requirements — install them only if you use it.
