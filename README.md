@@ -32,9 +32,17 @@ AniGen takes a **single image** as input and automatically produces a fully rigg
 
 Fit a generated rig to a monocular video and animate it — the skeleton motion is optimized by **differentiable rendering**, enhanced with optical flow and point tracking (CoTracker3).
 
-<p align="center"><img src="assets/4drecon/camel_fit.gif" width="85%"></p>
-<p align="center"><img src="assets/4drecon/bear_fit.gif" width="85%"></p>
-<p align="center"><em>Left → right: input video &nbsp;·&nbsp; mesh overlay &nbsp;·&nbsp; skeleton overlay</em></p>
+<table align="center" width="100%">
+<tr>
+<td width="75%" align="center"><img src="assets/4drecon/bear_fit.gif" width="100%"></td>
+<td width="25%" align="center"><img src="assets/4drecon/bear_showcase.gif" width="100%"></td>
+</tr>
+<tr>
+<td width="75%" align="center"><img src="assets/4drecon/camel_fit.gif" width="100%"></td>
+<td width="25%" align="center"><img src="assets/4drecon/camel_showcase.gif" width="100%"></td>
+</tr>
+</table>
+<p align="center"><sub><em>Each row — left: input video · mesh overlay · skeleton overlay · AniGen prediction</em></sub></p>
 
 ```sh
 CUDA_VISIBLE_DEVICES=0 bash anigen/4drecon/run_all.sh camel

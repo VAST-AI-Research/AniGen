@@ -5,10 +5,16 @@ from the first frame, its pose is initialised with VGGT-Omega and refined with n
 per-frame skeleton motion is optimised by **differentiable rendering** (silhouette + optical
 flow + CoTracker3 point tracks), and the result is rendered from the original and cyclic views.
 
-![camel](../../assets/4drecon/camel_fit.gif)
-![bear](../../assets/4drecon/bear_fit.gif)
-
-*Left → right: input video · mesh overlay · skeleton overlay (fit over the darkened input frame). DAVIS bear & camel.*
+<table align="center" width="100%">
+<tr>
+<td width="75%" align="center"><img src="../../assets/4drecon/bear_fit.gif" width="100%"></td>
+<td width="25%" align="center"><img src="../../assets/4drecon/bear_showcase.gif" width="100%"></td>
+</tr>
+<tr>
+<td width="75%" align="center"><img src="../../assets/4drecon/camel_fit.gif" width="100%"></td>
+<td width="25%" align="center"><img src="../../assets/4drecon/camel_showcase.gif" width="100%"></td>
+</tr>
+</table>
 
 This is an **standalone** add-on. It is not imported by the core package and its
 dependencies are not in the repo requirements — install them only if you use it.
