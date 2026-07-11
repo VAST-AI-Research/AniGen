@@ -42,6 +42,7 @@ def main():
     ap.add_argument("--fov_x", type=float, default=50.0)
     ap.add_argument("--radius", type=float, default=3.0)
     ap.add_argument("--iters", type=int, default=500)
+    ap.add_argument("--frame", type=int, default=0, help="frame to align the rig to (-1 = last, for reverse-fit sequences)")
     args = ap.parse_args()
     dev = "cuda"
     Rd = f"results/{args.seq}"
@@ -55,9 +56,11 @@ def main():
     faces = torch.tensor(d["faces"], device=dev, dtype=torch.int32)
 
     vg = np.load(args.vggt)
-    frames, masks, names, _ = load_davis(frames_dir, ann_dir, H=args.H, W=args.W, n_frames=1)
-    target = torch.tensor(masks[0], device=dev, dtype=torch.float32)
-    frame0 = (frames[0] * 255).astype(np.uint8)
+    frames, masks, names, _ = load_davis(frames_dir, ann_dir, H=args.H, W=args.W,
+                                         n_frames=None if args.frame != 0 else 1)
+    fr = args.frame % len(masks)
+    target = torch.tensor(masks[fr], device=dev, dtype=torch.float32)
+    frame0 = (frames[fr] * 255).astype(np.uint8)
 
     E, K, info = build_fit_camera(vg["R_real_canon"], vg["cam_dir"], args.W, args.H,
                                   fov_x_deg=args.fov_x, radius=args.radius, device=dev)
@@ -97,9 +100,9 @@ def main():
         vw = apply_similarity(verts, s, Rg, tg)
         pred = r.render_silhouette(vw, faces, E, K, args.H, args.W, ssaa=2)
         final_iou = mask_iou(pred, target)
-    print(f"FINAL frame-0 IoU = {final_iou:.3f}")
+    print(f"FINAL frame-{fr} IoU = {final_iou:.3f}")
 
-    ov = overlay(frame0, pred.cpu().numpy(), masks[0])
+    ov = overlay(frame0, pred.cpu().numpy(), masks[fr])
     Image.fromarray(ov).save(os.path.join(os.path.dirname(args.out), "pose0_overlay.png"))
 
     np.savez(args.out,

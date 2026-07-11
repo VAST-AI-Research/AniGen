@@ -30,7 +30,7 @@ AniGen takes a **single image** as input and automatically produces a fully rigg
 
 ### **Application**: Monocular 4D Reconstruction with Generative Priors
 
-Fit a generated rig to a monocular video and animate it — the skeleton motion is optimized by **differentiable rendering**, enhanced with optical flow and point tracking (CoTracker3).
+Fit a generated rig to a monocular video and animate it — the skeleton motion is optimized by **differentiable rendering**, guided by **LoMa** appearance correspondences (render vs. masked frame), followed by a joint pose + skin + texture refinement.
 
 <table align="center" width="100%">
 <tr>
@@ -41,14 +41,30 @@ Fit a generated rig to a monocular video and animate it — the skeleton motion 
 <td width="75%" align="center"><img src="assets/4drecon/camel_fit.gif" width="100%"></td>
 <td width="25%" align="center"><img src="assets/4drecon/camel_showcase.gif" width="100%"></td>
 </tr>
+<tr>
+<td width="75%" align="center"><img src="assets/4drecon/g1_1_fit.gif" width="100%"></td>
+<td width="25%" align="center"><img src="assets/4drecon/g1_1_showcase.gif" width="100%"></td>
+</tr>
+<tr>
+<td width="75%" align="center"><img src="assets/4drecon/g1_3_fit.gif" width="100%"></td>
+<td width="25%" align="center"><img src="assets/4drecon/g1_3_showcase.gif" width="100%"></td>
+</tr>
+<tr>
+<td width="75%" align="center"><img src="assets/4drecon/as2_1_fit.gif" width="100%"></td>
+<td width="25%" align="center"><img src="assets/4drecon/as2_1_showcase.gif" width="100%"></td>
+</tr>
 </table>
 <p align="center"><sub><em>Each row — left: input video · mesh overlay · skeleton overlay · AniGen prediction</em></sub></p>
 
+One command — a video (or an image folder) in, an animated rig out:
+
 ```sh
-CUDA_VISIBLE_DEVICES=0 bash anigen/4drecon/run_all.sh camel
+bash anigen/4drecon/run.sh --video clip.mp4                # or:  --frames frames_dir/
+                           [--mask mask.mp4 | masks_dir/]  # optional; if omitted, SAM3 auto-masks
+                           [--prompt "robot"] [--name myseq]
 ```
 
-This is an optional add-on under [`anigen/4drecon/`](anigen/4drecon/README.md); its dependencies and third-party trackers are installed separately (see that README).
+`--video`/`--frames` is the input; `--mask` is an optional foreground mask (video or image folder) — without it, masks are produced automatically by SAM3 (`--prompt` text). This is an optional add-on under [`anigen/4drecon/`](anigen/4drecon/README.md); its dependencies and third-party checkouts (VGGT-Omega, LoMa) are installed separately (see that README).
 
 <!-- Installation -->
 ## 📦 Installation

@@ -26,6 +26,7 @@ from geometry import (rot6d_to_matrix, apply_similarity, Skeleton,
                    look_at_extrinsics, fov_to_intrinsics_normalized, intrinsics_to_projection)
 from renderer import Renderer, to_uint8
 from davis import load_davis, davis_paths
+from fit_utils import pick_vertex_colors
 
 
 def project(points, E, K, W, H, near=0.01, far=100.0):
@@ -59,10 +60,13 @@ def draw_skeleton(img, j2d, parents, colors, depth=None, radius=4, lw=3):
 
 
 def draw_mesh_contour(img, mask, color, thickness=2):
-    """Outline the mesh silhouette (mask>0.5) on img (uint8 RGB) with a colored contour."""
+    """Outline the mesh silhouette (mask>0.5) on img (uint8 RGB) with a colored contour.
+
+    RETR_LIST retrieves ALL contours -- both the outer boundary AND the boundaries of interior
+    holes (e.g. the gaps between the arms and the torso) -- so internal openings are outlined too."""
     img = np.ascontiguousarray(img)
     m = (mask > 0.5).astype(np.uint8)
-    cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    cnts, _ = cv2.findContours(m, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     cv2.drawContours(img, cnts, -1, color, thickness, cv2.LINE_AA)
     return img
 
@@ -94,7 +98,7 @@ def main():
     d = np.load(args.rig)
     verts = torch.tensor(d["vertices"], device=dev, dtype=torch.float32)
     faces = torch.tensor(d["faces"], device=dev, dtype=torch.int32)
-    colors_v = torch.tensor(d["vertex_colors"], device=dev, dtype=torch.float32)
+    colors_v = torch.tensor(pick_vertex_colors(d), device=dev, dtype=torch.float32)
     weights = torch.tensor(d["skin_weights"], device=dev, dtype=torch.float32)
     parents = np.asarray(d["parents"]).astype(np.int64)
     sk = Skeleton(d["joints"], d["parents"], device=dev)

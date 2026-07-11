@@ -21,6 +21,7 @@ from geometry import (rot6d_to_matrix, apply_similarity, Skeleton,
                    look_at_extrinsics, fov_to_intrinsics_normalized)
 from renderer import Renderer, to_uint8
 from davis import load_davis, davis_paths
+from fit_utils import pick_vertex_colors
 
 
 def save_video(frames_u8, path, fps=15, gif=True, gif_scale=0.5):
@@ -57,7 +58,7 @@ def main():
     d = np.load(args.rig)
     verts = torch.tensor(d["vertices"], device=dev, dtype=torch.float32)
     faces = torch.tensor(d["faces"], device=dev, dtype=torch.int32)
-    colors = torch.tensor(d["vertex_colors"], device=dev, dtype=torch.float32)
+    colors = torch.tensor(pick_vertex_colors(d), device=dev, dtype=torch.float32)
     weights = torch.tensor(d["skin_weights"], device=dev, dtype=torch.float32)
     sk = Skeleton(d["joints"], d["parents"], device=dev)
 

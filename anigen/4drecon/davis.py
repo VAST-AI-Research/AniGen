@@ -1,11 +1,10 @@
-"""DAVIS-style video loader + RAFT optical flow (torchvision)."""
+"""DAVIS-style video loader (frames + binary masks)."""
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # standalone imports
 import glob
 
 import numpy as np
-import torch
 from PIL import Image
 
 from paths import davis_paths  # re-exported for convenience
@@ -58,46 +57,6 @@ def mask_stats(mask: np.ndarray):
     return (float(cx), float(cy)), area, bbox
 
 
-# --------------------------------------------------------------------------- #
-# RAFT optical flow (torchvision)
-# --------------------------------------------------------------------------- #
-@torch.no_grad()
-def compute_raft_flow(frames_np: np.ndarray, device="cuda", pad_to=8):
-    """Dense forward flow t->t+1 for a frame stack.
-
-    frames_np : [N,H,W,3] float [0,1]
-    Returns   : flow [N-1,H,W,2] float32 (pixel dx,dy, top-left convention), on CPU.
-    """
-    from torchvision.models.optical_flow import raft_large, Raft_Large_Weights
-
-    weights = Raft_Large_Weights.DEFAULT
-    model = raft_large(weights=weights, progress=False).to(device).eval()
-
-    N, H, W, _ = frames_np.shape
-    # RAFT expects sizes divisible by 8.
-    Hp = (H + pad_to - 1) // pad_to * pad_to
-    Wp = (W + pad_to - 1) // pad_to * pad_to
-
-    def prep(a):
-        t = torch.from_numpy(a).permute(2, 0, 1)[None].to(device)      # [1,3,H,W] in [0,1]
-        t = torch.nn.functional.interpolate(t, size=(Hp, Wp), mode="bilinear", align_corners=False)
-        return t * 2.0 - 1.0                                           # RAFT wants [-1,1]
-
-    flows = []
-    for t in range(N - 1):
-        img1 = prep(frames_np[t])
-        img2 = prep(frames_np[t + 1])
-        flow = model(img1, img2)[-1]                                   # [1,2,Hp,Wp]
-        # resize flow back to (H,W) and rescale magnitudes
-        flow = torch.nn.functional.interpolate(flow, size=(H, W), mode="bilinear", align_corners=False)
-        flow[:, 0] *= W / Wp
-        flow[:, 1] *= H / Hp
-        flows.append(flow[0].permute(1, 2, 0).cpu())                   # [H,W,2]
-    del model
-    torch.cuda.empty_cache()
-    return torch.stack(flows, 0).numpy().astype(np.float32)
-
-
 if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser()
@@ -108,5 +67,3 @@ if __name__ == "__main__":
     print("frames", fr.shape, "masks", mk.shape, "orig", hw, "names", nm)
     for i in range(len(mk)):
         print(" ", nm[i], "maskstats", mask_stats(mk[i]))
-    fl = compute_raft_flow(fr, device="cuda")
-    print("flow", fl.shape, "mean|flow|", np.abs(fl).mean())

@@ -425,3 +425,6 @@ results/
 
 # third-party DSINE checkout (cloned separately, has its own .git)
 extensions/DSINE-hub/
+# 4drecon third-party checkouts (cloned separately)
+extensions/LoMa/
+extensions/vggt-omega/

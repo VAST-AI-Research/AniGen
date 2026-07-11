@@ -50,8 +50,15 @@ def rembg_soft_masks(imgs, model):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--seq", required=True)
-    ap.add_argument("--model", default="birefnet", help="'birefnet' (PyTorch, offline) or rembg name e.g. 'u2net'")
+    ap.add_argument("--model", default="birefnet",
+                    help="'sam3' (text-prompted video VOS, temporally consistent), 'birefnet' "
+                         "(per-frame, offline), or a rembg session name e.g. 'u2net'")
+    ap.add_argument("--prompt", default="object", help="text prompt for --model sam3 (e.g. 'robot')")
     ap.add_argument("--assets", default="assets")
+    ap.add_argument("--asset_frame", type=int, default=0,
+                    help="which frame becomes the AniGen input RGBA (-1 = last, for reverse-fit sequences)")
+    ap.add_argument("--primary", action="store_true",
+                    help="[--model sam3] keep only the PRIMARY tracked object (foreground); drops a 2nd matching object (e.g. a background camel that overlaps the target)")
     args = ap.parse_args()
 
     frames_dir, ann_dir = davis_paths(args.seq)
@@ -60,19 +67,30 @@ def main():
 
     imgs = sorted(glob.glob(os.path.join(frames_dir, "*.jpg")))
     assert imgs, f"no frames in {frames_dir}"
-    gen = birefnet_soft_masks(imgs) if args.model == "birefnet" else rembg_soft_masks(imgs, args.model)
 
-    for i, (im, soft) in enumerate(gen):
-        mask = (np.asarray(soft) > 127).astype(np.uint8) * 255
-        Image.fromarray(mask, "L").save(os.path.join(ann_dir, f"{i:05d}.png"))
-        if i == 0:
-            rgba = np.dstack([np.asarray(im), np.asarray(soft)]).astype(np.uint8)
-            Image.fromarray(rgba, "RGBA").save(os.path.join(args.assets, f"{args.seq}_rgba.png"))
-        if i % 20 == 0:
-            print(f"  {i+1}/{len(imgs)}  fg frac={float((np.asarray(soft)>127).mean()):.3f}")
+    if args.model == "sam3":
+        from sam3_seg import sam3_video_masks
+        frames = np.stack([np.asarray(Image.open(fp).convert("RGB")) for fp in imgs]).astype(np.uint8)
+        masks = sam3_video_masks(frames, prompt=args.prompt, primary_only=args.primary)   # [T,H,W] bool
+        for i in range(len(imgs)):
+            Image.fromarray((masks[i].astype(np.uint8) * 255), "L").save(os.path.join(ann_dir, f"{i:05d}.png"))
+        af = args.asset_frame % len(imgs)
+        rgba = np.dstack([frames[af], (masks[af].astype(np.uint8) * 255)]).astype(np.uint8)
+        Image.fromarray(rgba, "RGBA").save(os.path.join(args.assets, f"{args.seq}_rgba.png"))
+    else:
+        gen = birefnet_soft_masks(imgs) if args.model == "birefnet" else rembg_soft_masks(imgs, args.model)
+        af = args.asset_frame % len(imgs)
+        for i, (im, soft) in enumerate(gen):
+            mask = (np.asarray(soft) > 127).astype(np.uint8) * 255
+            Image.fromarray(mask, "L").save(os.path.join(ann_dir, f"{i:05d}.png"))
+            if i == af:
+                rgba = np.dstack([np.asarray(im), np.asarray(soft)]).astype(np.uint8)
+                Image.fromarray(rgba, "RGBA").save(os.path.join(args.assets, f"{args.seq}_rgba.png"))
+            if i % 20 == 0:
+                print(f"  {i+1}/{len(imgs)}  fg frac={float((np.asarray(soft)>127).mean()):.3f}")
 
     print(f"masks [{args.model}] -> {ann_dir} ({len(imgs)} frames)")
-    print(f"first-frame RGBA -> {os.path.join(args.assets, args.seq + '_rgba.png')}")
+    print(f"asset RGBA (frame {args.asset_frame}) -> {os.path.join(args.assets, args.seq + '_rgba.png')}")
 
 
 if __name__ == "__main__":

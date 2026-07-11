@@ -35,6 +35,47 @@ def build_fit_camera(R_real_canon, cam_dir, W, H, fov_x_deg=50.0, radius=3.0, de
     return E, K, info
 
 
+def pick_vertex_colors(d):
+    """Vertex colours to render: the per-vertex texture-optimised colours if coverage >= threshold, else
+    (low coverage) the global-colormap colours (`vertex_colors_global`) if present, else the raw original."""
+    files = getattr(d, "files", list(d.keys()))
+    cov = float(d["tex_coverage"]) if "tex_coverage" in files else 1.0
+    th = float(d["tex_cov_thresh"]) if "tex_cov_thresh" in files else 0.70
+    if cov < th:
+        if "vertex_colors_global" in files:
+            return d["vertex_colors_global"]
+        if "vertex_colors_orig" in files:
+            return d["vertex_colors_orig"]
+    return d["vertex_colors"]
+
+
+def bilateral_time_smooth(x, sigma_t, k_v=1.5):
+    """Edge-preserving temporal smoothing of a per-frame signal x[T, ...].
+
+    Each frame is a weighted average of its temporal neighbours, with weight = Gaussian-in-time *
+    similarity kernel on the per-frame change.  Slow motion (a smooth walk) is smoothed away, but a
+    FAST change (a quick turn) is preserved because frames across it are dissimilar -> low weight.
+    The change scale auto-adapts to k_v * median(|Δx|), so it works across sequences.  Returns np[T,...].
+    """
+    x = np.asarray(x, np.float64)
+    if sigma_t <= 0 or len(x) < 3:
+        return x
+    T = x.shape[0]; xf = x.reshape(T, -1)
+    vel = np.linalg.norm(np.diff(xf, axis=0), axis=1)
+    sv = max(1e-9, k_v * float(np.median(vel)))
+    r = int(3 * sigma_t) + 1
+    out = xf.copy()
+    for t in range(T):
+        lo, hi = max(0, t - r), min(T, t + r + 1)
+        dt = np.arange(lo, hi) - t
+        wt = np.exp(-dt ** 2 / (2 * sigma_t ** 2))
+        dv = np.linalg.norm(xf[lo:hi] - xf[t], axis=1)
+        w = wt * np.exp(-(dv / sv) ** 2 / 2)
+        w /= w.sum()
+        out[t] = (w[:, None] * xf[lo:hi]).sum(0)
+    return out.reshape(x.shape)
+
+
 def gaussian_blur(x, ksize=11, sigma=3.0):
     """Blur a [H,W] or [1,1,H,W] tensor with a separable Gaussian."""
     if x.dim() == 2:

@@ -28,6 +28,7 @@ from geometry import (rot6d_to_matrix, apply_similarity, axis_angle_to_matrix, S
                       intrinsics_to_projection)
 from renderer import Renderer, to_uint8
 from davis import load_davis, davis_paths
+from fit_utils import pick_vertex_colors
 from render_skeleton import draw_skeleton, draw_mesh_contour, project, CONTOUR_COLORS
 
 
@@ -59,7 +60,7 @@ def main():
     ap.add_argument("--f_meshin", type=int, default=25)
     ap.add_argument("--f_bgout", type=int, default=30)
     ap.add_argument("--f_center", type=int, default=30)
-    ap.add_argument("--f_spin", type=int, default=100)
+    ap.add_argument("--f_spin", type=int, default=133)   # 0.75x-slow 360 orbit (more frames at same fps)
     ap.add_argument("--f_back", type=int, default=30)
     ap.add_argument("--f_bgin", type=int, default=30)
     args = ap.parse_args()
@@ -75,7 +76,7 @@ def main():
     d = np.load(args.rig)
     verts = torch.tensor(d["vertices"], device=dev, dtype=torch.float32)
     faces = torch.tensor(d["faces"], device=dev, dtype=torch.int32)
-    colors_v = torch.tensor(d["vertex_colors"], device=dev, dtype=torch.float32)
+    colors_v = torch.tensor(pick_vertex_colors(d), device=dev, dtype=torch.float32)
     weights = torch.tensor(d["skin_weights"], device=dev, dtype=torch.float32)
     parents = np.asarray(d["parents"]).astype(np.int64)
     sk = Skeleton(d["joints"], d["parents"], device=dev)
@@ -165,15 +166,20 @@ def main():
     for i in range(args.f_bgin):
         e = smooth(i / (args.f_bgin - 1))
         vid.append(frame(v0, j0, f0, args.bg_dark + (1 - args.bg_dark) * e, 1.0, 1.0))
-    # H: play the fitted animation over the video
+    # H: play the fitted animation over the video at ORIGINAL speed. The mp4 runs at args.fps (30) for a
+    # smooth orbit, but the animation content is 15fps (= the fit videos) -> each animation frame is held
+    # for args.fps//15 output frames.
+    hold = max(1, args.fps // 15)
     for t in range(T):
         vw, jw = posed(t)
-        vid.append(frame(vw.detach(), jw.detach(), frames_np[t], 1.0, 1.0, 1.0))
+        f = frame(vw.detach(), jw.detach(), frames_np[t], 1.0, 1.0, 1.0)
+        for _ in range(hold):
+            vid.append(f)
 
     imageio.mimsave(os.path.join(args.outdir, "showcase.mp4"), vid, fps=args.fps, quality=8, macro_block_size=1)
-    imageio.mimsave(os.path.join(args.outdir, "showcase.gif"),
-                    [np.asarray(Image.fromarray(f).resize((W // 2, H // 2))) for f in vid[::2]],
-                    fps=args.fps // 2, loop=0)
+    imageio.mimsave(os.path.join(args.outdir, "showcase.gif"),      # keep every frame (full frame rate)
+                    [np.asarray(Image.fromarray(f).resize((W // 2, H // 2))) for f in vid],
+                    fps=args.fps, loop=0)
     print(f"wrote showcase.mp4/.gif ({len(vid)} frames @ {args.fps}fps) to {args.outdir}")
 
 
