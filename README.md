@@ -66,6 +66,26 @@ bash anigen/4drecon/run.sh --video clip.mp4                # or:  --frames frame
 
 `--video`/`--frames` is the input; `--mask` is an optional foreground mask (video or image folder) — without it, masks are produced automatically by SAM3 (`--prompt` text). This is an optional add-on under [`anigen/4drecon/`](anigen/4drecon/README.md); its dependencies and third-party checkouts (VGGT-Omega, LoMa) are installed separately (see that README).
 
+### **Application**: Video Editing (re-animate & recompose)
+
+Take a fitted asset, give it a **new motion** and **new camera**. Rendered by **VACE** (Wan2.2-VACE-Fun-A14B).
+
+<p align="center">
+  <img src="video_editing/assets/edit_grid.gif" width="95%"><br>
+  <sub><em>top: original clips &nbsp;·&nbsp; bottom: edited, new motion + camera.</em></sub>
+</p>
+
+```sh
+cd video_editing
+python edit.py --asset unitree_g1_1 --recon <recon_dir> --mask <recon_dir>/dynamic_mask --name jumpingjack \
+    --motion_source "do two jumping jacks then wave" --camera_source "slowly orbit the robot"
+```
+
+`<recon_dir>` is a one-off scene reconstruction of the source clip (depth + cameras + masks) — see the
+guide for the layout; `--mask` is the per-frame subject masks (the recon's `dynamic_mask/`).
+
+Full guide: [`video_editing/README.md`](video_editing/README.md).
+
 <!-- Installation -->
 ## 📦 Installation
 
