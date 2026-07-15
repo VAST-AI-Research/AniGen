@@ -68,7 +68,7 @@ bash anigen/4drecon/run.sh --video clip.mp4                # or:  --frames frame
 
 ### **Application**: Video Editing (motion-editing & recompose)
 
-> [!TIP]
+> [!NOTE]
 > _The current video editing tool is a preview version. We are developing another video editing research that supports **non-rigid motion editing**, 6DoF trajectory editing, scaling, duplication, deletion, and camera re-shooting. **Stay tuned for the official release!**_
 
 Take a fitted asset, give it a **new motion** and **new camera**. Rendered by **VACE** (Wan2.2-VACE-Fun-A14B).
