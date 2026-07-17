@@ -65,7 +65,7 @@ If `CLAUDE.md` or `CODEX.md` exists, they should stay lightweight and only conta
 
 ### Prerequisites
 - **OS**: Linux only.
-- **GPU**: NVIDIA GPU with >= 18 GB VRAM. Tested on A800, RTX 3090.
+- **GPU**: NVIDIA GPU with >= 18 GB VRAM. Tested on A800, RTX 3090. The installer has a Blackwell/RTX 50-series compatibility path.
 - **CUDA Toolkit**: 11.8 or 12.2 (needed to compile extensions).
 - **Python**: 3.10+.
 
@@ -98,7 +98,7 @@ source ./setup.sh --train
 
 **Important**: `setup.sh` must be **sourced** (`. ./setup.sh` or `source ./setup.sh`), not executed directly (`bash setup.sh` will fail to activate the environment).
 
-The script auto-detects CUDA version and installs matching wheels for PyTorch, spconv, pytorch3d, and nvdiffrast. It prefers `uv` for fast installs and falls back to `pip`.
+The script auto-detects CUDA version and GPU compute capability and installs matching wheels for PyTorch, spconv, pytorch3d, and nvdiffrast. Blackwell GPUs select PyTorch 2.7 with CUDA 12.8. It prefers `uv` for fast installs and falls back to `pip`.
 
 ## Pretrained Model Weights
 
@@ -192,7 +192,7 @@ Sample data: [VAST-AI/AniGen_sample_data](https://huggingface.co/datasets/VAST-A
 
 | Dependency | Notes |
 |---|---|
-| PyTorch 2.4–2.5 | Auto-selected by `setup.sh` based on Python version |
+| PyTorch 2.4–2.5; 2.7 on Blackwell | Auto-selected by `setup.sh` based on Python version and GPU compute capability |
 | spconv | CUDA-version-matched (`spconv-cu118` or `spconv-cu121`) |
 | pytorch3d | Pre-built wheel or source build; requires `--no-build-isolation` |
 | nvdiffrast | Differentiable rasterization; compiled extension |
@@ -218,7 +218,13 @@ Common issues:
 
 ## Testing
 
-No dedicated test suite (research codebase). Verify correctness with:
+The research codebase has one lightweight installer regression test:
+
+```bash
+tests/test_setup_blackwell.sh
+```
+
+Verify model behavior with:
 
 1. **Primary smoke test** — launch the Gradio web demo:
    ```bash

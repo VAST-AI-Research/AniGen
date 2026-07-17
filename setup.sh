@@ -56,7 +56,9 @@ if [ "$HELP" = true ] || [ "$#" -eq 0 -a "$ALL" = false -a "$BASIC" = false -a "
     echo
     echo "Environment variables:"
     echo "  ANIGEN_PYTHON=/path/to/python   Use a specific Python interpreter"
-    echo "  TORCH_VERSION=2.4.0             Override PyTorch version (default: 2.4.0 for Python <=3.12, 2.5.0 for 3.13+)"
+    echo "  ANIGEN_CUDA_CAPABILITY=12.0     Override GPU compute capability detection"
+    echo "  TORCH_VERSION=2.4.0             Override PyTorch version (Blackwell requires >=2.7)"
+    echo "  ANIGEN_TORCH_INDEX_URL=URL      Override the PyTorch wheel index"
     return 0
 fi
 
@@ -125,6 +127,53 @@ _detect_python_version() {
     "$PYTHON_BIN" -c "import sys; print(f'{sys.version_info.major}{sys.version_info.minor}')" 2>/dev/null
 }
 
+_detect_compute_capability() {
+    if [ -n "${ANIGEN_CUDA_CAPABILITY:-}" ]; then
+        printf '%s\n' "$ANIGEN_CUDA_CAPABILITY"
+        return
+    fi
+    local capability=""
+    if command -v nvidia-smi >/dev/null 2>&1; then
+        capability=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null \
+            | tr -d ' ' | sort -V | tail -1)
+    fi
+    if [ -z "$capability" ]; then
+        capability=$("$PYTHON_BIN" -c "import torch; caps = [torch.cuda.get_device_capability(i) for i in range(torch.cuda.device_count())]; print(f'{max(caps)[0]}.{max(caps)[1]}' if caps else '')" 2>/dev/null || true)
+    fi
+    printf '%s\n' "$capability"
+}
+
+CUDA_CAPABILITY=$(_detect_compute_capability)
+CUDA_CAPABILITY_MAJOR=$(echo "${CUDA_CAPABILITY}" | cut -d'.' -f1)
+BLACKWELL_GPU=false
+case "$CUDA_CAPABILITY_MAJOR" in
+    ''|*[!0-9]*) ;;
+    *)
+        if [ "$CUDA_CAPABILITY_MAJOR" -ge 10 ]; then
+            BLACKWELL_GPU=true
+        fi
+        ;;
+esac
+
+if [ "$BLACKWELL_GPU" = true ]; then
+    export TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST:-$CUDA_CAPABILITY}"
+    FLASH_ARCH=$(echo "$CUDA_CAPABILITY" | tr -d '.')
+    export FLASH_ATTN_CUDA_ARCHS="${FLASH_ATTN_CUDA_ARCHS:-$FLASH_ARCH}"
+    echo "[SETUP] Detected NVIDIA Blackwell compute capability ${CUDA_CAPABILITY}; enabling SM${FLASH_ARCH} extension builds"
+fi
+
+_require_blackwell_torch() {
+    if [ "$BLACKWELL_GPU" != true ]; then
+        return 0
+    fi
+    case "$1" in
+        ''|0.*|1.*|2.[0-6]|2.[0-6].*)
+            echo "[ERROR] NVIDIA Blackwell (compute capability ${CUDA_CAPABILITY}) requires PyTorch >=2.7 with CUDA 12.8 support."
+            return 1
+            ;;
+    esac
+}
+
 # ─── Tsinghua mirror ────────────────────────────────────────────────────────
 
 if [ "$TSINGHUA" = true ]; then
@@ -175,10 +224,12 @@ if [ "$TORCH" = true ]; then
     fi
     CUDA_MAJOR=$(echo "${CUDA_VER}" | cut -d'.' -f1)
 
-    # Auto-select default PyTorch version based on Python version
+    # Auto-select a Blackwell-capable build before applying legacy defaults.
     PYVER_NUM=$("$PYTHON_BIN" -c "import sys; print(sys.version_info.minor)" 2>/dev/null || echo "10")
     if [ -z "${TORCH_VERSION:-}" ]; then
-        if [ "$PYVER_NUM" -ge 13 ]; then
+        if [ "$BLACKWELL_GPU" = true ]; then
+            TORCH_VER="2.7.0"
+        elif [ "$PYVER_NUM" -ge 13 ]; then
             TORCH_VER="2.5.0"
         else
             TORCH_VER="2.4.0"
@@ -187,7 +238,13 @@ if [ "$TORCH" = true ]; then
         TORCH_VER="$TORCH_VERSION"
     fi
 
-    if [ "${CUDA_MAJOR}" = "12" ]; then
+    _require_blackwell_torch "$TORCH_VER" || return 1
+
+    if [ -n "${ANIGEN_TORCH_INDEX_URL:-}" ]; then
+        TORCH_INDEX="$ANIGEN_TORCH_INDEX_URL"
+    elif [ "$BLACKWELL_GPU" = true ]; then
+        TORCH_INDEX=https://download.pytorch.org/whl/cu128
+    elif [ "${CUDA_MAJOR}" = "12" ]; then
         TORCH_INDEX=https://download.pytorch.org/whl/cu121
     elif [ "${CUDA_MAJOR}" = "11" ]; then
         TORCH_INDEX=https://download.pytorch.org/whl/cu118
@@ -199,6 +256,10 @@ if [ "$TORCH" = true ]; then
     echo "[SETUP] Installing PyTorch ${TORCH_VER} (CUDA index: ${TORCH_INDEX})"
     _pip_install --upgrade pip setuptools wheel
     _pip_install "torch==${TORCH_VER}" "torchvision" --index-url "$TORCH_INDEX"
+fi
+
+if [ "$BASIC" = true ] || [ "$FLASH_ATTN" = true ] || [ "$XFORMERS" = true ] || [ "$TRAIN" = true ]; then
+    _require_blackwell_torch "$(_detect_torch_version)" || return 1
 fi
 
 # ─── Step 2: Install base requirements ──────────────────────────────────────

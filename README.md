@@ -94,7 +94,7 @@ Full guide: [`video_editing/README.md`](video_editing/README.md).
 
 ### Prerequisites
 - **System**: The code is currently tested only on **Linux**.
-- **Hardware**: An NVIDIA GPU with at least 18GB of memory is necessary. The code has been verified on NVIDIA A800 and RTX3090 GPUs.
+- **Hardware**: An NVIDIA GPU with at least 18GB of memory is necessary. The code has been verified on NVIDIA A800 and RTX3090 GPUs. The setup script also detects Blackwell GPUs such as the RTX 50 series and selects a compatible PyTorch build.
 - **Software**:
   - The [CUDA Toolkit](https://developer.nvidia.com/cuda-toolkit-archive) is needed to compile certain submodules. The code has been tested with CUDA versions 11.8 and 12.2.
   - [Conda](https://docs.anaconda.com/miniconda/install/#quick-command-line-install) is recommended for managing dependencies.
@@ -128,6 +128,7 @@ Full guide: [`video_editing/README.md`](video_editing/README.md).
 
     > [!NOTE]
     > The setup script auto-detects your CUDA version and installs matching wheels for PyTorch, spconv, pytorch3d, and nvdiffrast. [DSINE](https://github.com/baegwangbin/DSINE) (used for surface normal estimation) is loaded at runtime via `torch.hub` and does not require separate installation.
+    > On NVIDIA Blackwell GPUs, it selects PyTorch 2.7 with CUDA 12.8 and exports the detected compute capability for local extension builds. Set `ANIGEN_CUDA_CAPABILITY` only when GPU detection is unavailable, for example `ANIGEN_CUDA_CAPABILITY=12.0` for RTX 50-series GPUs.
 
 
 <!-- Pretrained Models -->
