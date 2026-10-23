@@ -299,6 +299,8 @@ class AniGenSparseStructureFlowModel(nn.Module):
         """
         Convert the torso of the model to float16.
         """
+        self.use_fp16 = True
+        self.dtype = torch.float16
         self.blocks.apply(convert_module_to_f16)
         self.blocks_skl.apply(convert_module_to_f16)
         if hasattr(self, "adapter_ss_to_skl_layers"):
@@ -317,6 +319,8 @@ class AniGenSparseStructureFlowModel(nn.Module):
         """
         Convert the torso of the model to float32.
         """
+        self.use_fp16 = False
+        self.dtype = torch.float32
         self.blocks.apply(convert_module_to_f32)
         self.blocks_skl.apply(convert_module_to_f32)
         if hasattr(self, "adapter_ss_to_skl_layers"):

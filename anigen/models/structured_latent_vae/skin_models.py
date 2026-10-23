@@ -151,6 +151,7 @@ class TreeTransformerSkinDecoder(nn.Module):
         """
         Convert the torso of the model to float16.
         """
+        self.dtype = torch.float16
         self.blocks_vertex.apply(convert_module_to_f16)
         self.blocks_skin.apply(convert_module_to_f16)
 
@@ -158,6 +159,7 @@ class TreeTransformerSkinDecoder(nn.Module):
         """
         Convert the torso of the model to float32.
         """
+        self.dtype = torch.float32
         self.blocks_vertex.apply(convert_module_to_f32)
         self.blocks_skin.apply(convert_module_to_f32)
 

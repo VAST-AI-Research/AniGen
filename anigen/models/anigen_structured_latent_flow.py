@@ -354,6 +354,8 @@ class AniGenSLatFlowModel(nn.Module):
         """
         Convert the torso of the model to float16.
         """
+        self.use_fp16 = True
+        self.dtype = torch.float16
         for postfix in ['', '_vert_skin', '_skl']:
             getattr(self, f'input_blocks{postfix}').apply(convert_module_to_f16)
             getattr(self, f'blocks{postfix}').apply(convert_module_to_f16)
@@ -369,6 +371,8 @@ class AniGenSLatFlowModel(nn.Module):
         """
         Convert the torso of the model to float32.
         """
+        self.use_fp16 = False
+        self.dtype = torch.float32
         for postfix in ['', '_vert_skin', '_skl']:
             getattr(self, f'input_blocks{postfix}').apply(convert_module_to_f32)
             getattr(self, f'blocks{postfix}').apply(convert_module_to_f32)
