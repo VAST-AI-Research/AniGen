@@ -236,7 +236,7 @@ if [ "$BASIC" = true ]; then
         mkdir -p /tmp/anigen_extensions
         if [ ! -f /tmp/anigen_extensions/pytorch3d/setup.py ]; then
             rm -rf /tmp/anigen_extensions/pytorch3d
-            _download https://github.com/facebookresearch/pytorch3d/archive/refs/tags/v0.7.8.tar.gz /tmp/anigen_extensions/pytorch3d.tar.gz
+            _download https://github.com/facebookresearch/pytorch3d/archive/refs/tags/V0.7.8.tar.gz /tmp/anigen_extensions/pytorch3d.tar.gz
             tar -xzf /tmp/anigen_extensions/pytorch3d.tar.gz -C /tmp/anigen_extensions
             mv /tmp/anigen_extensions/pytorch3d-0.7.8 /tmp/anigen_extensions/pytorch3d
         fi
